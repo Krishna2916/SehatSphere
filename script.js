@@ -18,13 +18,17 @@ async function uploadFileToServer(file, type = 'document') {
     fd.append('patientId', session.patientId || 'guest');
     fd.append('type', type);
 
-    const res = await fetch(`${API_BASE_URL}/files/upload`, {
+    // Use local /api/upload route for MVP (no S3)
+    const res = await fetch(`${API_BASE_URL}/upload`, {
       method: 'POST',
       body: fd
     });
     if (!res.ok) throw new Error('Upload failed');
     const data = await res.json();
-    return data.file || null;
+    // support both old S3 response (data.file) and new local upload response
+    if (data.file) return data.file;
+    if (data.success && data.path) return { url: data.path, filename: data.fileName, originalName: data.originalName };
+    return null;
   } catch (e) {
     console.warn('File upload failed, falling back to local storage', e.message);
     return null;
