@@ -2,59 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>SehatSphere — Smart India Hackathon 2025 (Fixed)</title>
+  <title>SehatSphere — Your Personal Health Assistant</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Splash Screen -->
   <div id="splash">
-    <img src="assets/logo.jpeg" class="logo" alt="logo"/>
+    <img src="assets/logo.jpeg" class="logo" alt="SehatSphere Logo"/>
     <h1>SehatSphere</h1>
-    <p>Innovating Health, Together</p>
+    <p>Your Health, Explained Simply</p>
   </div>
 
+  <!-- Fixed Header -->
   <header>
     <img src="assets/logo.jpeg" class="logo-small" alt="logo">
-    <div>
+    <div class="header-content">
       <div class="app-title">SehatSphere</div>
-      <div class="app-tag">Innovating Health, Together</div>
+      <div class="app-tag">Smart Healthcare</div>
     </div>
+    <button id="logoutBtn" class="header-logout hidden">Logout</button>
   </header>
 
   <main class="content">
-    <section id="loginSection" class="card">
-      <h3>Login / Register</h3>
-      <label>Full name: <input id="nameInput" placeholder="e.g., Ravi Kumar" /></label><br>
-      <label>Role:
+    
+    <!-- LOGIN SECTION -->
+    <section id="loginSection" class="card login-card">
+      <h2>Welcome to SehatSphere</h2>
+      <p class="subtitle-text">Sign in or create a new account</p>
+      
+      <div class="form-group">
+        <label for="nameInput">Your Full Name</label>
+        <input id="nameInput" type="text" placeholder="e.g., Ravi Kumar" />
+      </div>
+
+      <div class="form-group">
+        <label for="roleSelect">I am a:</label>
         <select id="roleSelect">
           <option value="patient">Patient</option>
           <option value="hospital">Hospital Authority</option>
+          <option value="oldage">Old Age Home</option>
+          <option value="pathology">Pathology Lab</option>
+          <option value="dementia">Senior with Dementia</option>
         </select>
-      </label><br>
-      <label>Patient ID (leave blank to create new): <input id="patientIdInput" placeholder="or leave empty" /></label><br>
-      <button id="loginBtn">Continue</button>
-      <p class="muted">Leave ID blank to generate a new Patient ID. Share that ID between patient & hospital to link records.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="patientIdInput">Your Health ID (optional)</label>
+        <input id="patientIdInput" type="text" placeholder="Leave empty to create a new one" />
+      </div>
+
+      <button id="loginBtn" class="btn-primary">Continue</button>
+      <p class="info-note">
+        📱 <strong>New user?</strong> Leave Health ID blank. We'll create one for you.<br>
+        🔗 <strong>Existing user?</strong> Enter your Health ID to link your records.
+      </p>
     </section>
 
-    <section id="dashboard" class="card hidden">
+    <!-- DASHBOARD SECTION (Hidden until login) -->
+    <section id="dashboard" class="hidden">
       <div class="dashboard-header">
-        <div>
-          <div id="welcome" style="font-weight:700"></div>
-          <div id="patientIdDisplay" class="muted"></div>
-        </div>
-        <div>
-          <button id="logoutBtn" class="small">Logout</button>
+        <div class="user-welcome">
+          <div id="welcome" class="welcome-text"></div>
+          <div id="healthIdDisplay" class="health-id-badge"></div>
         </div>
       </div>
 
-      <div id="patientMenu" class="grid hidden"></div>
-      <div id="hospitalMenu" class="grid hidden"></div>
+      <!-- Patient Home Dashboard (MVP) -->
+      <div id="patientHome" class="hidden">
+        <section class="card dashboard-intro">
+          <h2>Your Health Dashboard</h2>
+          <p class="subtitle-text">Welcome back! What would you like to do today?</p>
+        </section>
+
+        <!-- Main Dashboard Buttons (Elder-Friendly) -->
+        <div class="dashboard-buttons">
+          <button class="dashboard-btn big-btn" onclick="showView('askAI')">
+            <span class="btn-icon">🤖</span>
+            <span class="btn-text">Ask AI About My Health</span>
+            <span class="btn-hint">Explain symptoms in simple language</span>
+          </button>
+
+          <button class="dashboard-btn big-btn" onclick="showView('myReports')">
+            <span class="btn-icon">📋</span>
+            <span class="btn-text">My Reports & Prescriptions</span>
+            <span class="btn-hint">View all medical documents</span>
+          </button>
+
+          <button class="dashboard-btn big-btn" onclick="showView('healthId')">
+            <span class="btn-icon">🆔</span>
+            <span class="btn-text">My Health ID & Profile</span>
+            <span class="btn-hint">Share with hospitals & doctors</span>
+          </button>
+
+          <button class="dashboard-btn big-btn" onclick="showView('reminders')">
+            <span class="btn-icon">🔔</span>
+            <span class="btn-text">Reminders</span>
+            <span class="btn-hint">Medicine times & appointments</span>
+          </button>
+        </div>
+
+        <!-- Secondary Menu (collapsible) -->
+        <div class="secondary-menu">
+          <button class="menu-toggle" onclick="toggleMenu()">More Options ▼</button>
+          <div id="expandedMenu" class="hidden">
+            <div id="patientMenu" class="grid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hospital/Authority Dashboard -->
+      <div id="authorityHome" class="hidden">
+        <section class="card dashboard-intro">
+          <h2>Authority Dashboard</h2>
+          <p class="subtitle-text">Manage patient records and consultations</p>
+        </section>
+        <div id="hospitalMenu" class="grid"></div>
+      </div>
     </section>
 
+    <!-- MAIN VIEWS CONTAINER -->
     <section id="views" class="content-views"></section>
   </main>
 
-  <footer>©  SehatSphere — Smart India Hackathon 2025 </footer>
+  <footer>
+    <p>© 2025 SehatSphere — Making Health Simple </p>
+  </footer>
 
   <script src="script.js"></script>
 </body>

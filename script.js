@@ -1,103 +1,795 @@
-// MediMinds - LocalStorage full prototype (fixed & robust)
+// SehatSphere MVP - Healthcare App with AI Assistance
+// Updated: 2025 - Elder-Friendly Interface
+
 const $ = id => document.getElementById(id);
 let session = { role: null, name: null, patientId: null };
 
-// Utility to generate a reasonably unique Patient ID (avoids collisions)
-function genPatientId(name) {
-  const base = (name || 'anon').replace(/\s+/g,'').toUpperCase().slice(0,6);
-  const rand = Math.floor(Math.random()*90000)+10000;
-  return 'MED' + base + rand.toString().slice(0,5);
+// ===== UTILITY FUNCTIONS =====
+
+// Generate unique Health ID
+function genHealthId(name) {
+  const base = (name || 'user').replace(/\s+/g, '').toUpperCase().slice(0, 6);
+  const rand = Math.floor(Math.random() * 90000) + 10000;
+  return 'MED' + base + rand.toString().slice(0, 5);
 }
 
 // LocalStorage helpers
-function loadAll(key){ try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ console.error('parse error',key,e); return []; } }
-function saveAll(key, arr){ localStorage.setItem(key, JSON.stringify(arr)); }
-function ensureKey(key){ if(!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify([])); }
-function addRecord(kind, obj){ const arr = loadAll(kind); arr.push(obj); saveAll(kind, arr); }
-function addForPatient(kind, pid, obj){ obj.patientId = pid; obj._ts = new Date().toLocaleString(); addRecord(kind, obj); }
-function queryForPatient(kind, pid){ return loadAll(kind).filter(x=>x.patientId===pid); }
+function loadAll(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  } catch (e) {
+    console.error('Parse error', key, e);
+    return [];
+  }
+}
 
-// Ensure base keys exist
-['patients','profiles','meds','prescriptions','tests','issues','appointments','moods','consults','consultReplies','contacts','visits','sos'].forEach(ensureKey);
+function saveAll(key, arr) {
+  localStorage.setItem(key, JSON.stringify(arr));
+}
 
-// hide splash quickly
-window.onload = ()=>{ setTimeout(()=>{ const s=$('splash'); if(s) s.style.display='none'; }, 600); };
+function ensureKey(key) {
+  if (!localStorage.getItem(key)) {
+    localStorage.setItem(key, JSON.stringify([]));
+  }
+}
 
-// login flow
-$('loginBtn').addEventListener('click', ()=>{
+function addRecord(kind, obj) {
+  const arr = loadAll(kind);
+  arr.push(obj);
+  saveAll(kind, arr);
+}
+
+function addForPatient(kind, pid, obj) {
+  obj.patientId = pid;
+  obj._ts = new Date().toLocaleString();
+  addRecord(kind, obj);
+}
+
+function queryForPatient(kind, pid) {
+  return loadAll(kind).filter(x => x.patientId === pid);
+}
+
+// Initialize localStorage keys
+['patients', 'profiles', 'meds', 'prescriptions', 'tests', 'issues', 'appointments', 'moods', 'consults', 'consultReplies', 'contacts', 'visits', 'sos', 'aiQueries', 'fileUploads'].forEach(ensureKey);
+
+// Hide splash screen
+window.onload = () => {
+  setTimeout(() => {
+    const s = $('splash');
+    if (s) s.style.display = 'none';
+  }, 600);
+};
+
+// ===== LOGIN FLOW =====
+
+$('loginBtn').addEventListener('click', () => {
   const name = $('nameInput').value.trim() || 'Anonymous';
   const role = $('roleSelect').value;
   let pid = $('patientIdInput').value.trim();
-  if(!pid){
-    // generate until unique
-    do { pid = genPatientId(name); } while(loadAll('patients').find(p=>p.patientId===pid));
+
+  if (!pid) {
+    // Generate unique Health ID
+    do {
+      pid = genHealthId(name);
+    } while (loadAll('patients').find(p => p.patientId === pid));
   }
-  // add patient entry if missing
+
+  // Create patient entry if new
   const patients = loadAll('patients');
-  if(!patients.find(p=>p.patientId===pid)){
-    patients.push({ patientId: pid, name: name, created: new Date().toLocaleString() });
+  if (!patients.find(p => p.patientId === pid)) {
+    patients.push({
+      patientId: pid,
+      name: name,
+      role: role,
+      created: new Date().toLocaleString()
+    });
     saveAll('patients', patients);
   }
+
   session = { role, name, patientId: pid };
-  // small timeout to ensure localStorage writes settle
   setTimeout(afterLogin, 120);
 });
 
-function afterLogin(){
-  // show dashboard and menus
+function afterLogin() {
   $('loginSection').classList.add('hidden');
   $('dashboard').classList.remove('hidden');
-  $('welcome').innerText = `${session.name} (${session.role})`;
-  $('patientIdDisplay').innerText = `Patient ID: ${session.patientId}`;
-  const pm = $('patientMenu'); const hm = $('hospitalMenu');
-  pm.innerHTML=''; hm.innerHTML='';
-  if(session.role === 'patient'){
-    pm.classList.remove('hidden'); hm.classList.add('hidden');
-    addPatientMenuButtons(pm);
-    showView('profile');
+  $('logoutBtn').classList.remove('hidden');
+
+  $('welcome').innerText = `👋 Welcome, ${session.name}`;
+  $('healthIdDisplay').innerText = `🆔 Health ID: ${session.patientId}`;
+
+  if (session.role === 'patient' || session.role === 'dementia') {
+    // Show patient home dashboard
+    $('patientHome').classList.remove('hidden');
+    $('authorityHome').classList.add('hidden');
+    addPatientMenuButtons($('patientMenu'));
   } else {
-    hm.classList.remove('hidden'); pm.classList.add('hidden');
-    addHospitalMenuButtons(hm);
-    showView('search');
-    renderSOS(); // populate SOS for authority
+    // Show authority dashboard
+    $('authorityHome').classList.remove('hidden');
+    $('patientHome').classList.add('hidden');
+    addAuthorityMenuButtons($('hospitalMenu'));
+    renderSOS();
   }
 }
 
-// logout
-document.addEventListener('click', (e)=>{ if(e.target && e.target.id === 'logoutBtn'){ location.reload(); } });
+// Logout
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'logoutBtn') {
+    location.reload();
+  }
+});
 
-// build menus
-function addPatientMenuButtons(container){
-  const items = [
-    ['profile','👤 Profile & Contacts'],
-    ['profiles','🗂 Disease Profiles'],
-    ['medications','💊 Medications'],
-    ['prescriptions','📋 Prescriptions'],
-    ['tests','🧪 Tests & Results'],
-    ['issues','📝 Issues'],
-    ['appointments','⏰ Appointments'],
-    ['mood','🙂 Mood Tracker'],
-    ['consult','🩺 Consult Doctor'],
-    ['sos','🚨 SOS']
-  ];
-  container.innerHTML='';
-  items.forEach(it=>{ const b=document.createElement('button'); b.className='nav-btn'; b.innerText=it[1]; b.onclick=()=>showView(it[0]); container.appendChild(b); });
+// Toggle expanded menu
+function toggleMenu() {
+  const menu = $('expandedMenu');
+  menu.classList.toggle('hidden');
 }
 
-function addHospitalMenuButtons(container){
+// ===== MENU BUILDERS =====
+
+function addPatientMenuButtons(container) {
   const items = [
-    ['search','🔍 Search Patient'],
-    ['uploadPres','📤 Upload Prescription'],
-    ['uploadTest','📤 Upload Test Result'],
-    ['visits','🏥 Visits & Admits'],
-    ['consultList','💬 Consult Requests'],
-    ['soslog','🚑 SOS Requests']
+    ['profile', '👤 Profile & Contacts'],
+    ['profiles', '🗂 Health Profiles'],
+    ['medications', '💊 Medications'],
+    ['prescriptions', '📋 Prescriptions'],
+    ['tests', '🧪 Tests & Results'],
+    ['issues', '📝 Current Issues'],
+    ['appointments', '⏰ Appointments'],
+    ['mood', '🙂 Mood Tracker'],
+    ['consult', '🩺 Consult Doctor'],
+    ['sos', '🚨 SOS Emergency']
   ];
-  container.innerHTML='';
-  items.forEach(it=>{ const b=document.createElement('button'); b.className='nav-btn'; b.innerText=it[1]; b.onclick=()=>showView(it[0]); container.appendChild(b); });
-  const reset=document.createElement('button'); reset.className='nav-btn'; reset.innerText='🧹 Reset All Data'; reset.onclick=()=>{ if(confirm('Clear all demo data?')){ localStorage.clear(); alert('Cleared'); location.reload(); } }; container.appendChild(reset);
+
+  container.innerHTML = '';
+  items.forEach(it => {
+    const b = document.createElement('button');
+    b.className = 'nav-btn';
+    b.innerText = it[1];
+    b.onclick = () => showView(it[0]);
+    container.appendChild(b);
+  });
 }
 
+function addAuthorityMenuButtons(container) {
+  const items = [
+    ['search', '🔍 Search Patient'],
+    ['uploadPres', '📤 Upload Prescription'],
+    ['uploadTest', '📤 Upload Test Result'],
+    ['visits', '🏥 Visits & Admits'],
+    ['consultList', '💬 Consult Requests'],
+    ['soslog', '🚑 Emergency Log']
+  ];
+
+  container.innerHTML = '';
+  items.forEach(it => {
+    const b = document.createElement('button');
+    b.className = 'nav-btn';
+    b.innerText = it[1];
+    b.onclick = () => showView(it[0]);
+    container.appendChild(b);
+  });
+}
+
+// ===== VIEW MANAGEMENT (MVP Enhanced) =====
+
+function showView(view) {
+  const allViews = [
+    // Patient views
+    'profile', 'profiles', 'medications', 'prescriptions', 'tests', 'issues', 'appointments', 'mood', 'consult', 'sos',
+    // MVP views
+    'askAI', 'myReports', 'healthId', 'reminders',
+    // Authority views
+    'search', 'uploadPres', 'uploadTest', 'visits', 'consultList', 'soslog'
+  ];
+
+  const container = $('views');
+
+  // Create view sections if missing
+  allViews.forEach(v => {
+    if (!document.getElementById('view-' + v)) {
+      const s = document.createElement('section');
+      s.id = 'view-' + v;
+      s.className = 'card hidden';
+      container.appendChild(s);
+    }
+  });
+
+  // Hide all views
+  allViews.forEach(v => document.getElementById('view-' + v).classList.add('hidden'));
+  document.getElementById('view-' + view).classList.remove('hidden');
+
+  // Call renderer
+  try {
+    const renderers = {
+      // MVP Views
+      askAI: renderAskAIView,
+      myReports: renderMyReportsView,
+      healthId: renderHealthIdView,
+      reminders: renderRemindersView,
+      // Patient views
+      profile: renderProfileView,
+      profiles: renderDiseaseProfiles,
+      medications: renderMedicationsView,
+      prescriptions: renderPrescriptionsView,
+      tests: renderTestsView,
+      issues: renderIssuesView,
+      appointments: renderAppointmentsView,
+      mood: renderMoodView,
+      consult: renderConsultView,
+      sos: renderSOSPatientView,
+      // Authority views
+      search: renderHospitalSearchView,
+      uploadPres: renderUploadPrescriptionView,
+      uploadTest: renderUploadTestView,
+      visits: renderVisitsView,
+      consultList: renderConsultListView,
+      soslog: renderSOS
+    };
+
+    if (renderers[view]) {
+      renderers[view]();
+    }
+  } catch (e) {
+    console.error('Renderer error for', view, e);
+  }
+}
+
+// ===== MVP VIEWS (NEW) =====
+
+// Ask AI About Health
+function renderAskAIView() {
+  const el = $('view-askAI');
+  el.innerHTML = `
+    <h3>🤖 Ask AI About My Health</h3>
+    <p class="subtitle-text">Describe your symptoms or health concern. Our AI will explain in simple language.</p>
+    
+    <div class="form-group">
+      <label for="symptomInput">Your Symptoms or Health Concern:</label>
+      <textarea id="symptomInput" placeholder="e.g., I have a headache and feel dizzy since morning"></textarea>
+    </div>
+
+    <div style="margin-bottom: 16px;">
+      <p style="font-weight: 600; margin-bottom: 8px;">📸 Attach Medical Documents (optional)</p>
+      <label style="display: block; margin-bottom: 8px;">
+        <span>📋 Prescription Photo</span>
+        <input type="file" id="filePresc" accept="image/*" style="display: block; margin-top: 4px;" />
+      </label>
+      <label style="display: block; margin-bottom: 8px;">
+        <span>💊 Medicine Strip Photo</span>
+        <input type="file" id="fileMeds" accept="image/*" style="display: block; margin-top: 4px;" />
+      </label>
+      <label style="display: block; margin-bottom: 8px;">
+        <span>🧪 Lab Report Photo</span>
+        <input type="file" id="fileReport" accept="image/*" style="display: block; margin-top: 4px;" />
+      </label>
+    </div>
+
+    <button class="btn-primary" onclick="submitHealthQuery()">Get Explanation</button>
+
+    <div id="aiResponse" class="hidden" style="margin-top: 20px; padding: 16px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid var(--primary-blue);">
+      <h4>📌 AI Explanation:</h4>
+      <p id="responseText"></p>
+    </div>
+
+    <h4 style="margin-top: 24px;">Your Query History</h4>
+    <div id="queryHistory"></div>
+  `;
+
+  // Load and display query history
+  const queries = queryForPatient('aiQueries', session.patientId);
+  if (queries.length > 0) {
+    $('queryHistory').innerHTML = queries
+      .reverse()
+      .map(q => `<div class="list-item"><strong>Q:</strong> ${q.symptom}<br/><strong>Response:</strong> ${q.response.substring(0, 100)}...<br/><span class="muted">${q._ts}</span></div>`)
+      .join('');
+  } else {
+    $('queryHistory').innerHTML = '<div class="muted">No queries yet. Ask a question to get started!</div>';
+  }
+}
+
+function submitHealthQuery() {
+  const symptom = $('symptomInput').value.trim();
+  if (!symptom) {
+    alert('Please describe your symptoms');
+    return;
+  }
+
+  // TODO: Replace this with real API call to /api/ai/analyzeSymptoms
+  // For MVP, use placeholder AI response
+  const response = getPlaceholderAIResponse(symptom);
+
+  // Store query
+  addForPatient('aiQueries', session.patientId, {
+    symptom: symptom,
+    response: response
+  });
+
+  // Show response
+  $('aiResponse').classList.remove('hidden');
+  $('responseText').innerHTML = response;
+
+  // Clear input
+  $('symptomInput').value = '';
+
+  // Refresh history
+  setTimeout(() => renderAskAIView(), 500);
+}
+
+function getPlaceholderAIResponse(symptom) {
+  // Placeholder responses - to be replaced with real AI API
+  const responses = {
+    headache: '💡 <strong>Headache Explanation:</strong><br/>Headaches can be caused by stress, dehydration, or tension. <br/>✅ <strong>What to do:</strong> Drink water, rest in a cool dark room, take a painkiller if needed, and see a doctor if it persists for more than 2 days.',
+    fever: '💡 <strong>Fever Explanation:</strong><br/>Fever is your body\'s way of fighting infection. Most fevers are caused by viral infections (like cold or flu).<br/>✅ <strong>What to do:</strong> Rest, drink fluids, take fever medicine (paracetamol), wear light clothing. See a doctor if fever is >101°F or lasts >3 days.',
+    default: '💡 <strong>Health Note:</strong><br/>Your concern has been noted. Based on your description, we recommend:<br/>✅ Monitor your symptoms for 24-48 hours<br/>✅ Stay hydrated and get adequate rest<br/>✅ Contact your doctor if symptoms worsen or persist<br/>⚠️ Seek immediate medical care if you experience chest pain, difficulty breathing, or severe symptoms.'
+  };
+
+  const key = Object.keys(responses).find(k => symptom.toLowerCase().includes(k));
+  return responses[key] || responses.default;
+}
+
+// My Reports & Prescriptions
+function renderMyReportsView() {
+  const el = $('view-myReports');
+  el.innerHTML = '<h3>📋 My Reports & Prescriptions</h3>';
+
+  const prescriptions = queryForPatient('prescriptions', session.patientId);
+  const tests = queryForPatient('tests', session.patientId);
+  const uploads = queryForPatient('fileUploads', session.patientId);
+
+  el.innerHTML += '<h4>Prescriptions</h4>';
+  if (prescriptions.length > 0) {
+    el.innerHTML += prescriptions.map(p => `<div class="list-item"><strong>📄 Prescription</strong><br/>${p.text}<br/><span class="muted">${p._ts}</span></div>`).join('');
+  } else {
+    el.innerHTML += '<div class="muted">No prescriptions yet</div>';
+  }
+
+  el.innerHTML += '<h4>Test Results</h4>';
+  if (tests.length > 0) {
+    el.innerHTML += tests.map(t => `<div class="list-item"><strong>🧪 ${t.name}</strong><br/>Result: ${t.result || '-'}<br/><span class="muted">${t._ts}</span></div>`).join('');
+  } else {
+    el.innerHTML += '<div class="muted">No test results yet</div>';
+  }
+
+  el.innerHTML += '<h4>Uploaded Documents</h4>';
+  if (uploads.length > 0) {
+    el.innerHTML += uploads.map(u => `<div class="list-item"><strong>📸 ${u.type}</strong><br/>${u.filename}<br/><span class="muted">${u._ts}</span></div>`).join('');
+  } else {
+    el.innerHTML += '<div class="muted">No documents uploaded yet</div>';
+  }
+}
+
+// My Health ID & Profile
+function renderHealthIdView() {
+  const el = $('view-healthId');
+  const patient = loadAll('patients').find(p => p.patientId === session.patientId);
+
+  el.innerHTML = `
+    <h3>🆔 My Health ID & Profile</h3>
+    
+    <div style="background: linear-gradient(135deg, #e3f2fd, #fff); padding: 24px; border-radius: 12px; border: 2px solid var(--primary-blue); text-align: center; margin-bottom: 24px;">
+      <p style="color: var(--muted-gray); margin-bottom: 8px;">YOUR UNIQUE HEALTH ID</p>
+      <h2 style="font-size: 32px; color: var(--primary-blue); font-weight: 700; margin: 0; font-family: monospace;">${session.patientId}</h2>
+      <p style="color: #666; margin-top: 12px; font-size: 13px;">Share this ID with hospitals and doctors to let them access your health records</p>
+      <button class="btn-primary" onclick="copyHealthId()" style="margin-top: 12px; width: auto; padding: 8px 16px;">📋 Copy ID</button>
+    </div>
+
+    <div class="card" style="background: #fff3e0; border-left: 4px solid #ff9800;">
+      <h4>📌 How to Share Your Health ID:</h4>
+      <ol style="margin-left: 20px; color: #333;">
+        <li>Give this ID to your hospital or doctor</li>
+        <li>They will enter it in their system</li>
+        <li>They can then view your prescriptions, test results, and medical history</li>
+      </ol>
+    </div>
+
+    <h4>Your Profile Information</h4>
+    <div class="list-item">
+      <strong>Name:</strong> ${patient?.name || 'N/A'}<br/>
+      <strong>Role:</strong> ${session.role}<br/>
+      <strong>Created:</strong> ${patient?.created || 'N/A'}
+    </div>
+
+    <h4>Emergency Contacts</h4>
+    <div id="contactsList"></div>
+  `;
+
+  const contacts = queryForPatient('contacts', session.patientId);
+  const contactsHtml = contacts.length
+    ? contacts.map(c => `<div class="list-item">${c.name} — ${c.phone}</div>`).join('')
+    : '<div class="muted">No emergency contacts added. Add one in your profile.</div>';
+
+  $('contactsList').innerHTML = contactsHtml;
+}
+
+function copyHealthId() {
+  navigator.clipboard.writeText(session.patientId);
+  alert('Health ID copied to clipboard! 📋');
+}
+
+// Reminders
+function renderRemindersView() {
+  const el = $('view-reminders');
+  el.innerHTML = '<h3>🔔 Reminders</h3>';
+  el.innerHTML += '<p class="subtitle-text">Your medicines and appointments</p>';
+
+  const meds = queryForPatient('meds', session.patientId);
+  const appts = queryForPatient('appointments', session.patientId);
+
+  el.innerHTML += '<h4>💊 Medicine Reminders</h4>';
+  if (meds.length > 0) {
+    el.innerHTML += meds.map(m => `
+      <div class="list-item">
+        <strong>${m.name}</strong> — ${m.dosage}<br/>
+        <span class="muted">${m.profile || 'General'}</span>
+      </div>
+    `).join('');
+  } else {
+    el.innerHTML += '<div class="muted">No medicines added yet</div>';
+  }
+
+  el.innerHTML += '<h4>⏰ Upcoming Appointments</h4>';
+  if (appts.length > 0) {
+    el.innerHTML += appts.map(a => `
+      <div class="list-item">
+        <strong>📅 ${a.date}</strong><br/>
+        ${a.reason}
+      </div>
+    `).join('');
+  } else {
+    el.innerHTML += '<div class="muted">No appointments scheduled</div>';
+  }
+}
+
+// ===== ORIGINAL PATIENT VIEWS (Modified slightly) =====
+
+function renderProfileView() {
+  const el = $('view-profile');
+  const patient = loadAll('patients').find(p => p.patientId === session.patientId);
+  el.innerHTML = '<h3>👤 Profile & Contacts</h3>';
+  el.innerHTML += `<div class="list-item"><strong>Name:</strong> ${patient ? patient.name : session.name}</div>`;
+  el.innerHTML += `<div class="form-group"><label for="ecName">Emergency Contact Name:</label><input id="ecName" type="text" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="ecPhone">Phone Number:</label><input id="ecPhone" type="tel" /></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="saveEmergencyContact()">Save Contact</button>';
+  const contacts = queryForPatient('contacts', session.patientId);
+  el.innerHTML += '<h4>Saved Contacts</h4>' + (contacts.length ? contacts.map(c => `<div class="list-item"><strong>${c.name}</strong> — ${c.phone}</div>`).join('') : '<div class="muted">No contacts saved</div>');
+}
+
+function saveEmergencyContact() {
+  const name = $('ecName').value.trim();
+  const phone = $('ecPhone').value.trim();
+  if (!name || !phone) {
+    alert('Enter contact name and phone');
+    return;
+  }
+  addForPatient('contacts', session.patientId, { name, phone });
+  alert('Contact saved!');
+  renderProfileView();
+}
+
+function renderDiseaseProfiles() {
+  const el = $('view-profiles');
+  el.innerHTML = '<h3>🗂 Health Profiles</h3>';
+  el.innerHTML += `<div class="form-group"><label for="newProfileName">Profile Name:</label><input id="newProfileName" type="text" placeholder="e.g., Diabetes" /></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="addDiseaseProfile()">Add Profile</button>';
+  const profiles = queryForPatient('profiles', session.patientId);
+  el.innerHTML += '<h4>Your Profiles</h4>' + (profiles.length ? profiles.map(p => `<div class="list-item"><strong>${p.name}</strong></div>`).join('') : '<div class="muted">No profiles</div>');
+}
+
+function addDiseaseProfile() {
+  const name = $('newProfileName').value.trim();
+  if (!name) {
+    alert('Enter profile name');
+    return;
+  }
+  addForPatient('profiles', session.patientId, { name });
+  alert('Profile created!');
+  renderDiseaseProfiles();
+}
+
+function renderMedicationsView() {
+  const el = $('view-medications');
+  el.innerHTML = '<h3>💊 Medications</h3>';
+  const profiles = queryForPatient('profiles', session.patientId);
+  const profileOptions = profiles.length ? profiles.map(p => `<option value="${p.name}">${p.name}</option>`).join('') : '<option value="">(Create a profile first)</option>';
+  el.innerHTML += `<div class="form-group"><label for="medProfileSelect">Health Profile:</label><select id="medProfileSelect">${profileOptions}</select></div>`;
+  el.innerHTML += `<div class="form-group"><label for="medName">Medicine Name:</label><input id="medName" type="text" placeholder="e.g., Aspirin" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="medDosage">Dosage:</label><input id="medDosage" type="text" placeholder="e.g., 500mg, twice daily" /></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="addMedicationToProfile()">Add Medication</button>';
+  const meds = queryForPatient('meds', session.patientId);
+  el.innerHTML += '<h4>Current Medications</h4>' + (meds.length ? meds.map(m => `<div class="list-item"><strong>${m.name}</strong> — ${m.dosage}</div>`).join('') : '<div class="muted">No medications</div>');
+}
+
+function addMedicationToProfile() {
+  const profile = $('medProfileSelect').value;
+  const name = $('medName').value.trim();
+  const dosage = $('medDosage').value.trim();
+  if (!profile) {
+    alert('Select a profile first');
+    return;
+  }
+  if (!name) {
+    alert('Enter medicine name');
+    return;
+  }
+  addForPatient('meds', session.patientId, { profile, name, dosage });
+  alert('Medication added!');
+  renderMedicationsView();
+}
+
+function renderPrescriptionsView() {
+  const el = $('view-prescriptions');
+  el.innerHTML = '<h3>📋 Prescriptions</h3>';
+  const profiles = queryForPatient('profiles', session.patientId);
+  const profileOptions = profiles.length ? profiles.map(p => `<option value="${p.name}">${p.name}</option>`).join('') : '<option value="">(no profiles)</option>';
+  el.innerHTML += `<div class="form-group"><label for="presProfileSelect">Profile:</label><select id="presProfileSelect">${profileOptions}</select></div>`;
+  el.innerHTML += `<div class="form-group"><label for="presText">Prescription Notes:</label><textarea id="presText" placeholder="Describe the prescription"></textarea></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="addPrescriptionForProfile()">Add Prescription</button>';
+  const pres = queryForPatient('prescriptions', session.patientId);
+  el.innerHTML += '<h4>Prescriptions</h4>' + (pres.length ? pres.map(p => `<div class="list-item">${p.text}</div>`).join('') : '<div class="muted">No prescriptions</div>');
+}
+
+function addPrescriptionForProfile() {
+  const profile = $('presProfileSelect').value;
+  const text = $('presText').value.trim();
+  if (!profile) {
+    alert('Select a profile');
+    return;
+  }
+  if (!text) {
+    alert('Enter prescription details');
+    return;
+  }
+  addForPatient('prescriptions', session.patientId, { profile, text });
+  alert('Prescription saved!');
+  renderPrescriptionsView();
+}
+
+function renderTestsView() {
+  const el = $('view-tests');
+  el.innerHTML = '<h3>🧪 Tests & Results</h3>';
+  const profiles = queryForPatient('profiles', session.patientId);
+  const profileOptions = profiles.length ? profiles.map(p => `<option value="${p.name}">${p.name}</option>`).join('') : '<option value="">(no profiles)</option>';
+  el.innerHTML += `<div class="form-group"><label for="testProfileSelect">Profile:</label><select id="testProfileSelect">${profileOptions}</select></div>`;
+  el.innerHTML += `<div class="form-group"><label for="testName">Test Name:</label><input id="testName" type="text" placeholder="e.g., Blood Test" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="testResult">Result/Notes:</label><textarea id="testResult" placeholder="Test results"></textarea></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="addTestForProfile()">Save Test</button>';
+  const tests = queryForPatient('tests', session.patientId);
+  el.innerHTML += '<h4>Test Records</h4>' + (tests.length ? tests.map(t => `<div class="list-item"><strong>${t.name}</strong><br/>${t.result || '-'}</div>`).join('') : '<div class="muted">No tests</div>');
+}
+
+function addTestForProfile() {
+  const profile = $('testProfileSelect').value;
+  const name = $('testName').value.trim();
+  const result = $('testResult').value.trim();
+  if (!profile) {
+    alert('Select a profile');
+    return;
+  }
+  if (!name) {
+    alert('Enter test name');
+    return;
+  }
+  addForPatient('tests', session.patientId, { profile, name, result });
+  alert('Test saved!');
+  renderTestsView();
+}
+
+function renderIssuesView() {
+  const el = $('view-issues');
+  el.innerHTML = '<h3>📝 Current Issues</h3>';
+  el.innerHTML += `<div class="form-group"><label for="issueText">Describe Your Issue:</label><textarea id="issueText" placeholder="Describe current health issue"></textarea></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="addIssueForPatient()">Report Issue</button>';
+  const issues = queryForPatient('issues', session.patientId);
+  el.innerHTML += '<h4>Issue History</h4>' + (issues.length ? issues.map(i => `<div class="list-item">${i.issue}</div>`).join('') : '<div class="muted">No issues</div>');
+}
+
+function addIssueForPatient() {
+  const txt = $('issueText').value.trim();
+  if (!txt) {
+    alert('Describe your issue');
+    return;
+  }
+  addForPatient('issues', session.patientId, { issue: txt });
+  alert('Issue reported!');
+  renderIssuesView();
+}
+
+function renderAppointmentsView() {
+  const el = $('view-appointments');
+  el.innerHTML = '<h3>⏰ Appointments</h3>';
+  el.innerHTML += `<div class="form-group"><label for="apptDate">Date:</label><input id="apptDate" type="date" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="apptReason">Reason:</label><input id="apptReason" type="text" placeholder="Appointment reason" /></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="addAppointmentForPatient()">Schedule</button>';
+  const appts = queryForPatient('appointments', session.patientId);
+  el.innerHTML += '<h4>Scheduled Appointments</h4>' + (appts.length ? appts.map(a => `<div class="list-item">${a.date} — ${a.reason}</div>`).join('') : '<div class="muted">No appointments</div>');
+}
+
+function addAppointmentForPatient() {
+  const date = $('apptDate').value;
+  const reason = $('apptReason').value.trim();
+  if (!date) {
+    alert('Select a date');
+    return;
+  }
+  addForPatient('appointments', session.patientId, { date, reason });
+  alert('Appointment scheduled!');
+  renderAppointmentsView();
+}
+
+function renderMoodView() {
+  const el = $('view-mood');
+  el.innerHTML = '<h3>🙂 Mood Tracker</h3>';
+  el.innerHTML += '<p class="subtitle-text">How are you feeling today?</p>';
+  el.innerHTML += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px;"><button class="nav-btn" onclick="addMood(\'😊 Great\')">😊 Great</button><button class="nav-btn" onclick="addMood(\'😐 OK\')">😐 OK</button><button class="nav-btn" onclick="addMood(\'😔 Not Good\')">😔 Not Good</button></div>';
+  const moods = queryForPatient('moods', session.patientId);
+  el.innerHTML += '<h4>Mood History</h4>' + (moods.length ? moods.map(m => `<div class="list-item">${m.mood}</div>`).join('') : '<div class="muted">No entries</div>');
+}
+
+function addMood(mood) {
+  addForPatient('moods', session.patientId, { mood });
+  renderMoodView();
+}
+
+function renderConsultView() {
+  const el = $('view-consult');
+  el.innerHTML = '<h3>🩺 Consult Doctor</h3>';
+  el.innerHTML += `<div class="form-group"><label for="consultText">Your Message:</label><textarea id="consultText" placeholder="Describe your health concern"></textarea></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="sendConsult()">Send Request</button>';
+  const reqs = queryForPatient('consults', session.patientId);
+  el.innerHTML += '<h4>Your Requests</h4>' + (reqs.length ? reqs.map(r => `<div class="list-item">${r.message}</div>`).join('') : '<div class="muted">No requests</div>');
+}
+
+function sendConsult() {
+  const msg = $('consultText').value.trim();
+  if (!msg) {
+    alert('Write your message');
+    return;
+  }
+  addForPatient('consults', session.patientId, { message: msg });
+  alert('Request sent to doctor!');
+  renderConsultView();
+}
+
+function renderSOSPatientView() {
+  const el = $('view-sos');
+  el.innerHTML = '<h3>🚨 Emergency Alert (SOS)</h3>';
+  el.innerHTML += '<p class="subtitle-text">Send emergency alert to hospital and your contacts</p>';
+  el.innerHTML += '<button class="big-red" style="width: 100%; padding: 16px; font-size: 16px; background: #e53935;" onclick="patientTriggerSOS()">🚑 SEND SOS</button>';
+  const sos = queryForPatient('sos', session.patientId);
+  el.innerHTML += '<h4>SOS History</h4>' + (sos.length ? sos.map(s => `<div class="sos-item">${s._ts} — SOS Triggered</div>`).join('') : '<div class="muted">No alerts</div>');
+}
+
+function patientTriggerSOS() {
+  if (confirm('Send emergency alert to hospital and your contacts?')) {
+    addForPatient('sos', session.patientId, { msg: 'Patient triggered SOS' });
+    alert('🚑 SOS sent! Hospital has been notified.');
+    renderSOS();
+    renderSOSPatientView();
+  }
+}
+
+// ===== AUTHORITY VIEWS =====
+
+function renderHospitalSearchView() {
+  const el = $('view-search');
+  el.innerHTML = '<h3>🔍 Search Patient</h3>';
+  el.innerHTML += `<div class="form-group"><label for="searchPid">Patient Health ID:</label><input id="searchPid" type="text" placeholder="e.g., MEDRAVI12345" /></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="hospitalSearch()">Search</button><div id="hospitalSearchResults" style="margin-top: 16px;"></div>';
+}
+
+function hospitalSearch() {
+  const pid = $('searchPid').value.trim();
+  if (!pid) {
+    alert('Enter Patient Health ID');
+    return;
+  }
+  const p = loadAll('patients').find(x => x.patientId === pid);
+  if (!p) {
+    return $('hospitalSearchResults').innerHTML = '<div class="muted">Patient not found</div>';
+  }
+
+  let out = `<div class="card"><h4>${p.name}</h4><div class="muted">Health ID: ${p.patientId}</div></div>`;
+  const profiles = queryForPatient('profiles', pid);
+  out += '<h5>Health Profiles</h5>' + (profiles.length ? profiles.map(pr => `<div class="list-item">${pr.name}</div>`).join('') : '<div class="muted">None</div>');
+  const meds = queryForPatient('meds', pid);
+  out += '<h5>Current Medications</h5>' + (meds.length ? meds.map(m => `<div class="list-item"><strong>${m.name}</strong> — ${m.dosage}</div>`).join('') : '<div class="muted">None</div>');
+  const pres = queryForPatient('prescriptions', pid);
+  out += '<h5>Prescriptions</h5>' + (pres.length ? pres.map(pr => `<div class="list-item">${pr.text}</div>`).join('') : '<div class="muted">None</div>');
+  const tests = queryForPatient('tests', pid);
+  out += '<h5>Test Results</h5>' + (tests.length ? tests.map(t => `<div class="list-item"><strong>${t.name}</strong> — ${t.result || '-'}</div>`).join('') : '<div class="muted">None</div>');
+  const contacts = queryForPatient('contacts', pid);
+  out += '<h5>Emergency Contacts</h5>' + (contacts.length ? contacts.map(c => `<div class="list-item">${c.name} — ${c.phone}</div>`).join('') : '<div class="muted">None</div>');
+  $('hospitalSearchResults').innerHTML = out;
+}
+
+function renderUploadPrescriptionView() {
+  const el = $('view-uploadPres');
+  el.innerHTML = '<h3>📤 Upload Prescription</h3>';
+  el.innerHTML += `<div class="form-group"><label for="uploadPresPid">Patient Health ID:</label><input id="uploadPresPid" type="text" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="uploadPresProfile">Disease Profile:</label><input id="uploadPresProfile" type="text" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="uploadPresText">Prescription Details:</label><textarea id="uploadPresText" placeholder="Prescription details"></textarea></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="hospitalUploadPrescription()">Upload</button>';
+}
+
+function hospitalUploadPrescription() {
+  const pid = $('uploadPresPid').value.trim();
+  const profile = $('uploadPresProfile').value.trim();
+  const txt = $('uploadPresText').value.trim();
+  if (!pid || !txt) {
+    alert('Enter patient ID and prescription');
+    return;
+  }
+  addForPatient('prescriptions', pid, { profile, text: txt, byAuthority: true });
+  alert('Prescription uploaded!');
+}
+
+function renderUploadTestView() {
+  const el = $('view-uploadTest');
+  el.innerHTML = '<h3>📤 Upload Test Result</h3>';
+  el.innerHTML += `<div class="form-group"><label for="uploadTestPid">Patient Health ID:</label><input id="uploadTestPid" type="text" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="uploadTestProfile">Profile:</label><input id="uploadTestProfile" type="text" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="uploadTestName">Test Name:</label><input id="uploadTestName" type="text" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="uploadTestResult">Result:</label><textarea id="uploadTestResult" placeholder="Test results"></textarea></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="hospitalUploadTest()">Upload</button>';
+}
+
+function hospitalUploadTest() {
+  const pid = $('uploadTestPid').value.trim();
+  const profile = $('uploadTestProfile').value.trim();
+  const name = $('uploadTestName').value.trim();
+  const result = $('uploadTestResult').value.trim();
+  if (!pid || !name) {
+    alert('Enter patient ID and test name');
+    return;
+  }
+  addForPatient('tests', pid, { profile, name, result, byAuthority: true });
+  alert('Test uploaded!');
+}
+
+function renderVisitsView() {
+  const el = $('view-visits');
+  el.innerHTML = '<h3>🏥 Hospital Visits & Admissions</h3>';
+  el.innerHTML += `<div class="form-group"><label for="visitPid">Patient Health ID:</label><input id="visitPid" type="text" /></div>`;
+  el.innerHTML += `<div class="form-group"><label for="visitType">Type:</label><select id="visitType"><option>Visit</option><option>Admit</option></select></div>`;
+  el.innerHTML += `<div class="form-group"><label for="visitReason">Reason:</label><input id="visitReason" type="text" /></div>`;
+  el.innerHTML += '<button class="btn-primary" onclick="addVisit()">Record</button>';
+  const visits = loadAll('visits');
+  el.innerHTML += '<h4>Visit Records</h4>' + (visits.length ? visits.map(v => `<div class="list-item"><strong>${v.patientId}</strong> — ${v.type}<br/>${v.reason}</div>`).join('') : '<div class="muted">No records</div>');
+}
+
+function addVisit() {
+  const pid = $('visitPid').value.trim();
+  const type = $('visitType').value;
+  const reason = $('visitReason').value.trim();
+  if (!pid || !reason) {
+    alert('Enter patient ID and reason');
+    return;
+  }
+  addForPatient('visits', pid, { type, reason, byAuthority: true });
+  alert('Visit recorded!');
+  renderVisitsView();
+}
+
+function renderConsultListView() {
+  const el = $('view-consultList');
+  el.innerHTML = '<h3>💬 Doctor Consultation Requests</h3>';
+  const all = loadAll('consults');
+  el.innerHTML += (all.length ? all.map(c => `<div class="list-item"><b>${c.patientId}</b> — ${c.message}<br/><button class="nav-btn" onclick="replyConsult('${c.patientId}')">Reply</button></div>`).join('') : '<div class="muted">No requests</div>');
+}
+
+function replyConsult(pid) {
+  const reply = prompt('Enter reply for ' + pid);
+  if (!reply) return;
+  addForPatient('consultReplies', pid, { reply });
+  alert('Reply saved!');
+}
+
+function renderSOS() {
+  const el = $('view-soslog');
+  const sos = loadAll('sos');
+  if (el) el.innerHTML = '<h3>🚑 Emergency Alerts (SOS Log)</h3>' + (sos.length ? sos.map(s => `<div class="sos-item"><b>${s.patientId}</b> — ${s._ts}</div>`).join('') : '<div class="muted">No alerts</div>');
+}
 // view management - dynamic creation + renderers
 function showView(view){
   const all = ['profile','profiles','medications','prescriptions','tests','issues','appointments','mood','consult','sos','search','uploadPres','uploadTest','visits','consultList','soslog'];
