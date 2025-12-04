@@ -8,8 +8,8 @@ const fs = require('fs');
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-// Accept only PDF, DOC, DOCX
-const allowedExt = ['.pdf', '.doc', '.docx'];
+// Accept PDF, DOC, DOCX and common image types (patients may upload photos)
+const allowedExt = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.gif'];
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -27,7 +27,7 @@ const upload = multer({
   fileFilter: function (req, file, cb) {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!allowedExt.includes(ext)) {
-      return cb(new Error('Only PDF, DOC and DOCX files are allowed'));
+      return cb(new Error('Only PDF/DOC/DOCX and image files (jpg/png/gif) are allowed'));
     }
     cb(null, true);
   },

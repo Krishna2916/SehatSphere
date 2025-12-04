@@ -304,15 +304,18 @@ function renderAskAIView() {
       <p style="font-weight: 600; margin-bottom: 8px;">📸 Attach Medical Documents (optional)</p>
       <label style="display: block; margin-bottom: 8px;">
         <span>📋 Prescription Photo</span>
-        <input type="file" id="filePresc" accept="image/*" style="display: block; margin-top: 4px;" />
+          <input type="file" id="filePresc" accept="image/*,.pdf,.doc,.docx" style="display: block; margin-top: 4px;" />
+          <div id="preview-filePresc" class="muted" style="margin-top:8px"></div>
       </label>
       <label style="display: block; margin-bottom: 8px;">
         <span>💊 Medicine Strip Photo</span>
-        <input type="file" id="fileMeds" accept="image/*" style="display: block; margin-top: 4px;" />
+          <input type="file" id="fileMeds" accept="image/*,.pdf,.doc,.docx" style="display: block; margin-top: 4px;" />
+          <div id="preview-fileMeds" class="muted" style="margin-top:8px"></div>
       </label>
       <label style="display: block; margin-bottom: 8px;">
         <span>🧪 Lab Report Photo</span>
-        <input type="file" id="fileReport" accept="image/*" style="display: block; margin-top: 4px;" />
+          <input type="file" id="fileReport" accept="image/*,.pdf,.doc,.docx" style="display: block; margin-top: 4px;" />
+          <div id="preview-fileReport" class="muted" style="margin-top:8px"></div>
       </label>
     </div>
 
@@ -337,6 +340,36 @@ function renderAskAIView() {
   } else {
     $('queryHistory').innerHTML = '<div class="muted">No queries yet. Ask a question to get started!</div>';
   }
+
+  // Client-side previews for selected files (show thumbnail for images, filename for other files)
+  function setupFilePreview(inputId) {
+    const inp = document.getElementById(inputId);
+    const preview = document.getElementById('preview-' + inputId);
+    if (!inp || !preview) return;
+    inp.addEventListener('change', (e) => {
+      preview.innerHTML = '';
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      const isImage = /^image\//.test(f.type) || /\.(jpg|jpeg|png|gif)$/i.test(f.name);
+      if (isImage) {
+        const url = URL.createObjectURL(f);
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = f.name;
+        img.style.maxWidth = '160px';
+        img.style.borderRadius = '6px';
+        img.style.display = 'block';
+        preview.appendChild(img);
+        img.onload = () => URL.revokeObjectURL(url);
+      } else {
+        const el = document.createElement('div');
+        el.innerText = f.name;
+        preview.appendChild(el);
+      }
+    });
+  }
+
+  ['filePresc','fileMeds','fileReport'].forEach(id => setupFilePreview(id));
 }
 
 async function submitHealthQuery() {
@@ -412,6 +445,47 @@ async function submitHealthQuery() {
   // Show response
   $('aiResponse').classList.remove('hidden');
   $('responseText').innerHTML = responseText;
+
+  // Render uploaded file previews (images show as thumbnails, others as links)
+  function isImageFilename(name) {
+    if (!name) return false;
+    return /\.(jpg|jpeg|png|gif)$/i.test(name);
+  }
+
+  const previewsElId = 'uploadedPreviews';
+  // remove existing previews if any
+  let existing = document.getElementById(previewsElId);
+  if (existing) existing.remove();
+  const previewsWrap = document.createElement('div');
+  previewsWrap.id = previewsElId;
+  previewsWrap.style.marginTop = '12px';
+  if (uploaded && uploaded.length) {
+    uploaded.forEach(u => {
+      // u might be different shapes depending on backend response
+      const url = u.url || u.path || (u.file && (u.file.url || u.file.location)) || null;
+      const name = u.filename || u.originalName || (u.file && (u.file.filename || u.file.originalname)) || u.type || 'file';
+      if (url && isImageFilename(name)) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = name;
+        img.style.maxWidth = '160px';
+        img.style.display = 'inline-block';
+        img.style.marginRight = '8px';
+        img.style.borderRadius = '6px';
+        previewsWrap.appendChild(img);
+      } else if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.innerText = `Open ${name}`;
+        a.style.display = 'block';
+        a.style.marginTop = '6px';
+        previewsWrap.appendChild(a);
+      }
+    });
+    $('aiResponse').appendChild(previewsWrap);
+  }
 
   // Clear input and files
   $('symptomInput').value = '';
