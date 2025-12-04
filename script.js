@@ -85,7 +85,27 @@ window.onload = () => {
     const s = $('splash');
     if (s) s.style.display = 'none';
   }, 600);
+  // After UI ready, check backend health
+  checkBackendHealth();
 };
+
+// Check backend health and set useBackend flag accordingly
+async function checkBackendHealth() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+    if (res.ok) {
+      const j = await res.json();
+      console.log('Backend healthy:', j);
+      useBackend = true;
+    } else {
+      console.warn('Backend health check failed, using local fallback');
+      useBackend = false;
+    }
+  } catch (e) {
+    console.warn('Backend unreachable, using local fallback', e.message);
+    useBackend = false;
+  }
+}
 
 // ===== LOGIN FLOW =====
 
@@ -347,6 +367,36 @@ async function submitHealthQuery() {
     }
   }
 
+  // If uploads failed or backend not available, save files locally (base64) so user can still keep them
+  async function saveFileFallback(file, type) {
+    if (!file) return null;
+    try {
+      const dataUrl = await readFileAsDataURL(file);
+      const obj = { patientId: session.patientId || 'guest', filename: file.name, type, dataUrl };
+      addRecord('fileUploads', obj);
+      return obj;
+    } catch (e) {
+      console.warn('Fallback save failed', e.message);
+      return null;
+    }
+  }
+
+  if (uploaded.length === 0) {
+    // attempt fallback saves
+    if (presFile) {
+      const f = await saveFileFallback(presFile, 'prescription');
+      if (f) uploaded.push(f);
+    }
+    if (medsFile) {
+      const f = await saveFileFallback(medsFile, 'meds');
+      if (f) uploaded.push(f);
+    }
+    if (reportFile) {
+      const f = await saveFileFallback(reportFile, 'report');
+      if (f) uploaded.push(f);
+    }
+  }
+
   // Call backend AI endpoint if available, otherwise fallback to placeholder
   let responseText = null;
   if (useBackend) {
@@ -406,6 +456,16 @@ function getPlaceholderAIResponse(symptom) {
   return responses[key] || responses.default;
 }
 
+// Helper: read a File into a data URL (for local fallback storage)
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = err => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
 // My Reports & Prescriptions
 function renderMyReportsView() {
   const el = $('view-myReports');
@@ -431,10 +491,58 @@ function renderMyReportsView() {
 
   el.innerHTML += '<h4>Uploaded Documents</h4>';
   if (uploads.length > 0) {
-    el.innerHTML += uploads.map(u => `<div class="list-item"><strong>📸 ${u.type}</strong><br/>${u.filename}<br/><span class="muted">${u._ts}</span></div>`).join('');
+    // Add a Sync button to attempt uploading local files to server if backend is available
+    const localOnly = uploads.filter(u => !u.url && u.dataUrl);
+    if (localOnly.length > 0) {
+      el.innerHTML += `<div style="margin-bottom:12px;"><button class="btn-primary" onclick="syncLocalUploads()">🔁 Sync Local Uploads to Server</button><small class="muted" style="display:block;margin-top:6px;">Uploads saved locally will be uploaded to server when available.</small></div>`;
+    }
+    el.innerHTML += uploads.map(u => {
+      // if uploaded via backend, `u.url` exists; if saved locally, `u.dataUrl` exists
+      const preview = u.url ? `<a href="${u.url}" target="_blank">Open file</a>` : (u.dataUrl ? `<img src="${u.dataUrl}" alt="${u.filename}" style="max-width:160px;display:block;margin-top:8px;border-radius:6px;" />` : '');
+      const ts = u._ts || (u.uploadedAt ? new Date(u.uploadedAt).toLocaleString() : '');
+      return `<div class="list-item"><strong>📸 ${u.type || u.filename}</strong><br/>${u.filename || u.type}<br/>${preview}<br/><span class="muted">${ts}</span></div>`;
+    }).join('');
   } else {
     el.innerHTML += '<div class="muted">No documents uploaded yet</div>';
   }
+}
+
+// Attempt to upload locally-saved files (dataUrl) to the backend when it becomes available
+async function syncLocalUploads() {
+  const uploads = loadAll('fileUploads');
+  const localOnly = uploads.filter(u => !u.url && u.dataUrl && u.patientId === session.patientId);
+  if (!localOnly.length) return alert('No local uploads to sync');
+  if (!useBackend) {
+    alert('Backend not available. Please try again later.');
+    return;
+  }
+
+  let successCount = 0;
+  for (const item of localOnly) {
+    try {
+      // Convert dataUrl back to File
+      const file = dataURLtoFile(item.dataUrl, item.filename || 'upload.png');
+      const uploaded = await uploadFileToServer(file, item.type || 'document');
+      if (uploaded) {
+        // remove old item and add server metadata
+        const all = loadAll('fileUploads').filter(x => !(x.dataUrl === item.dataUrl && x.patientId === item.patientId));
+        all.push({ patientId: item.patientId, filename: item.filename, type: item.type, url: uploaded.url, key: uploaded.key, _ts: new Date().toLocaleString() });
+        saveAll('fileUploads', all);
+        successCount++;
+      }
+    } catch (e) {
+      console.warn('Sync failed for item', item.filename, e.message);
+    }
+  }
+  alert(`Sync finished. ${successCount} files uploaded.`);
+  renderMyReportsView();
+}
+
+// Convert dataURL to File object
+function dataURLtoFile(dataurl, filename) {
+  var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+  while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+  return new File([u8arr], filename, {type:mime});
 }
 
 // My Health ID & Profile
@@ -781,49 +889,8 @@ function hospitalSearch() {
   $('hospitalSearchResults').innerHTML = out;
 }
 
-function renderUploadPrescriptionView() {
-  const el = $('view-uploadPres');
-  el.innerHTML = '<h3>📤 Upload Prescription</h3>';
-  el.innerHTML += `<div class="form-group"><label for="uploadPresPid">Patient Health ID:</label><input id="uploadPresPid" type="text" /></div>`;
-  el.innerHTML += `<div class="form-group"><label for="uploadPresProfile">Disease Profile:</label><input id="uploadPresProfile" type="text" /></div>`;
-  el.innerHTML += `<div class="form-group"><label for="uploadPresText">Prescription Details:</label><textarea id="uploadPresText" placeholder="Prescription details"></textarea></div>`;
-  el.innerHTML += '<button class="btn-primary" onclick="hospitalUploadPrescription()">Upload</button>';
-}
-
-function hospitalUploadPrescription() {
-  const pid = $('uploadPresPid').value.trim();
-  const profile = $('uploadPresProfile').value.trim();
-  const txt = $('uploadPresText').value.trim();
-  if (!pid || !txt) {
-    alert('Enter patient ID and prescription');
-    return;
-  }
-  addForPatient('prescriptions', pid, { profile, text: txt, byAuthority: true });
-  alert('Prescription uploaded!');
-}
-
-function renderUploadTestView() {
-  const el = $('view-uploadTest');
-  el.innerHTML = '<h3>📤 Upload Test Result</h3>';
-  el.innerHTML += `<div class="form-group"><label for="uploadTestPid">Patient Health ID:</label><input id="uploadTestPid" type="text" /></div>`;
-  el.innerHTML += `<div class="form-group"><label for="uploadTestProfile">Profile:</label><input id="uploadTestProfile" type="text" /></div>`;
-  el.innerHTML += `<div class="form-group"><label for="uploadTestName">Test Name:</label><input id="uploadTestName" type="text" /></div>`;
-  el.innerHTML += `<div class="form-group"><label for="uploadTestResult">Result:</label><textarea id="uploadTestResult" placeholder="Test results"></textarea></div>`;
-  el.innerHTML += '<button class="btn-primary" onclick="hospitalUploadTest()">Upload</button>';
-}
-
-function hospitalUploadTest() {
-  const pid = $('uploadTestPid').value.trim();
-  const profile = $('uploadTestProfile').value.trim();
-  const name = $('uploadTestName').value.trim();
-  const result = $('uploadTestResult').value.trim();
-  if (!pid || !name) {
-    alert('Enter patient ID and test name');
-    return;
-  }
-  addForPatient('tests', pid, { profile, name, result, byAuthority: true });
-  alert('Test uploaded!');
-}
+// Authority upload views are implemented further down with file picker support.
+// The newer implementations handle file selection, upload to /api/upload, and local fallback.
 
 function renderVisitsView() {
   const el = $('view-visits');
@@ -969,11 +1036,92 @@ function renderHospitalSearchView(){ const el = $('view-search'); el.innerHTML =
 function hospitalSearch(){ const pid = $('searchPid').value.trim(); if(!pid) return alert('Enter Patient ID'); const p = loadAll('patients').find(x=>x.patientId===pid); if(!p) return $('hospitalSearchResults').innerHTML = '<div class="muted">Patient not found</div>'; let out = `<h4>${p.name} — ${p.patientId}</h4>`; const profiles = queryForPatient('profiles', pid); out += '<h5>Profiles</h5>' + (profiles.length ? profiles.map(pr=>`<div class="list-item">${pr.name} <div class="muted">${pr._ts}</div></div>`).join('') : '<div class="muted">No profiles</div>'); const meds = queryForPatient('meds', pid); out += '<h5>Medications</h5>' + (meds.length ? meds.map(m=>`<div class="list-item">${m.name} — ${m.dosage} <div class="muted">Profile: ${m.profile}</div></div>`).join('') : '<div class="muted">No meds</div>'); const pres = queryForPatient('prescriptions', pid); out += '<h5>Prescriptions</h5>' + (pres.length ? pres.map(pr=>`<div class="list-item">${pr.text} <div class="muted">Profile: ${pr.profile} • ${pr._ts}</div></div>`).join('') : '<div class="muted">No prescriptions</div>'); const tests = queryForPatient('tests', pid); out += '<h5>Tests</h5>' + (tests.length ? tests.map(t=>`<div class="list-item">${t.name} — ${t.result || '-'} <div class="muted">Profile: ${t.profile}</div></div>`).join('') : '<div class="muted">No tests</div>'); const issues = queryForPatient('issues', pid); out += '<h5>Issues</h5>' + (issues.length ? issues.map(i=>`<div class="list-item">${i.issue} <div class="muted">${i._ts}</div></div>`).join('') : '<div class="muted">No issues</div>'); const appts = queryForPatient('appointments', pid); out += '<h5>Appointments</h5>' + (appts.length ? appts.map(a=>`<div class="list-item">${a.date} — ${a.reason} <div class="muted">${a._ts}</div></div>`).join('') : '<div class="muted">No appointments</div>'); const contacts = queryForPatient('contacts', pid); out += '<h5>Contacts</h5>' + (contacts.length ? contacts.map(c=>`<div class="list-item">${c.name} — ${c.phone}</div>`).join('') : '<div class="muted">No contacts</div>'); const visits = queryForPatient('visits', pid); out += '<h5>Visits & Admits</h5>' + (visits.length ? visits.map(v=>`<div class="list-item">${v.type} — ${v.reason} <div class="muted">${v._ts}</div></div>`).join('') : '<div class="muted">No visits</div>'); $('hospitalSearchResults').innerHTML = out; }
 
 // Hospital - upload prescription/test and visits
-function renderUploadPrescriptionView(){ const el = $('view-uploadPres'); el.innerHTML = '<h3>Upload Prescription (Authority)</h3>'; el.innerHTML += `<label>Patient ID: <input id="uploadPresPid" /></label><label>Profile (disease): <input id="uploadPresProfile" /></label><label>Notes/filename: <input id="uploadPresText" /></label><button onclick="hospitalUploadPrescription()">Upload</button>`; }
-function hospitalUploadPrescription(){ const pid = $('uploadPresPid').value.trim(); const profile = $('uploadPresProfile').value.trim(); const txt = $('uploadPresText').value.trim(); if(!pid||!txt) return alert('Enter patient ID and prescription'); addForPatient('prescriptions', pid, {profile, text: txt, byAuthority: true}); alert('Prescription uploaded'); }
+function renderUploadPrescriptionView(){
+  const el = $('view-uploadPres');
+  el.innerHTML = '<h3>Upload Prescription (Authority)</h3>';
+  el.innerHTML += `<label>Patient ID: <input id="uploadPresPid" /></label>`;
+  el.innerHTML += `<label>Profile (disease): <input id="uploadPresProfile" /></label>`;
+  // file picker - allow PDF, DOC, DOCX only
+  el.innerHTML += `<label>Prescription File (PDF / DOC / DOCX): <input id="uploadPresFile" type="file" accept=".pdf,.doc,.docx" /></label>`;
+  el.innerHTML += `<div id="uploadPresStatus" class="muted" style="margin-top:8px"></div>`;
+  el.innerHTML += `<button onclick="hospitalUploadPrescriptionFile()">Upload File</button>`;
+}
 
-function renderUploadTestView(){ const el = $('view-uploadTest'); el.innerHTML = '<h3>Upload Test Result (Authority)</h3>'; el.innerHTML += `<label>Patient ID: <input id="uploadTestPid" /></label><label>Profile: <input id="uploadTestProfile" /></label><label>Test name: <input id="uploadTestName" /></label><label>Result/notes: <input id="uploadTestResult" /></label><button onclick="hospitalUploadTest()">Upload</button>`; }
-function hospitalUploadTest(){ const pid = $('uploadTestPid').value.trim(); const profile = $('uploadTestProfile').value.trim(); const name = $('uploadTestName').value.trim(); const result = $('uploadTestResult').value.trim(); if(!pid||!name) return alert('Enter patient ID and test name'); addForPatient('tests', pid, {profile, name, result, byAuthority: true}); alert('Test uploaded'); }
+// Upload prescription file. Uses /api/upload endpoint. Falls back to local storage on failure.
+async function hospitalUploadPrescriptionFile(){
+  const pid = $('uploadPresPid').value.trim() || session.patientId || 'unknown';
+  const profile = $('uploadPresProfile').value.trim() || '';
+  const statusEl = $('uploadPresStatus');
+  const fileInput = document.getElementById('uploadPresFile');
+  const file = fileInput?.files?.[0];
+  if(!file){ statusEl.innerText = 'Please select a file to upload'; return; }
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('patientId', pid);
+  fd.append('type', 'prescription');
+  fd.append('profile', profile);
+
+  try{
+    // TODO: Replace localhost with deployed backend URL via config.js when deploying
+    // Use existing backend upload route
+    const res = await fetch(`${API_BASE_URL}/files/upload`, { method: 'POST', body: fd });
+    if(!res.ok) throw new Error('Upload failed: ' + res.statusText);
+    const json = await res.json();
+    statusEl.innerText = `Uploaded: ${file.name}`;
+    addForPatient('fileUploads', pid, { filename: file.name, url: json.file?.url || json.url || null, type: 'prescription' });
+  } catch(e){
+    console.warn('Upload failed, saving locally', e.message);
+    statusEl.innerText = 'Upload failed, saved locally';
+    const dataUrl = await readFileAsDataURL(file);
+    addForPatient('fileUploads', pid, { filename: file.name, dataUrl, type: 'prescription' });
+  }
+}
+
+function renderUploadTestView(){
+  const el = $('view-uploadTest');
+  el.innerHTML = '<h3>Upload Test Result (Authority)</h3>';
+  el.innerHTML += `<label>Patient ID: <input id="uploadTestPid" /></label>`;
+  el.innerHTML += `<label>Profile: <input id="uploadTestProfile" /></label>`;
+  el.innerHTML += `<label>Test name: <input id="uploadTestName" /></label>`;
+  // file picker - allow PDF, DOC, DOCX only
+  el.innerHTML += `<label>Test Report (PDF / DOC / DOCX): <input id="uploadTestFile" type="file" accept=".pdf,.doc,.docx" /></label>`;
+  el.innerHTML += `<div id="uploadTestStatus" class="muted" style="margin-top:8px"></div>`;
+  el.innerHTML += `<button onclick="hospitalUploadTestFile()">Upload File</button>`;
+}
+
+// Upload test result file to /api/upload. Falls back to local storage on failure.
+async function hospitalUploadTestFile(){
+  const pid = $('uploadTestPid').value.trim() || session.patientId || 'unknown';
+  const profile = $('uploadTestProfile').value.trim() || '';
+  const testName = $('uploadTestName').value.trim() || '';
+  const statusEl = $('uploadTestStatus');
+  const fileInput = document.getElementById('uploadTestFile');
+  const file = fileInput?.files?.[0];
+  if(!file){ statusEl.innerText = 'Please select a file to upload'; return; }
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('patientId', pid);
+  fd.append('type', 'test');
+  fd.append('profile', profile);
+  fd.append('testName', testName);
+
+  try{
+    // TODO: Replace localhost with deployed backend URL via config.js when deploying
+    // Use existing backend upload route
+    const res = await fetch(`${API_BASE_URL}/files/upload`, { method: 'POST', body: fd });
+    if(!res.ok) throw new Error('Upload failed: ' + res.statusText);
+    const json = await res.json();
+    statusEl.innerText = `Uploaded: ${file.name}`;
+    addForPatient('fileUploads', pid, { filename: file.name, url: json.file?.url || json.url || null, type: 'test', name: testName });
+  } catch(e){
+    console.warn('Upload failed, saving locally', e.message);
+    statusEl.innerText = 'Upload failed, saved locally';
+    const dataUrl = await readFileAsDataURL(file);
+    addForPatient('fileUploads', pid, { filename: file.name, dataUrl, type: 'test', name: testName });
+  }
+}
 
 function renderVisitsView(){ const el = $('view-visits'); el.innerHTML = '<h3>Visits & Admissions (Authority)</h3>'; el.innerHTML += `<label>Patient ID: <input id="visitPid" /></label><label>Type: <select id="visitType"><option>Visit</option><option>Admit</option></select></label><label>Reason: <input id="visitReason" /></label><button onclick="addVisit()">Add</button>`; const visits = loadAll('visits'); el.innerHTML += '<h4>All visits</h4>' + (visits.length ? visits.map(v=>`<div class="list-item">${v.patientId} — ${v.type} — ${v.reason} <div class="muted">${v._ts}</div></div>`).join('') : '<div class="muted">No visits</div>'); }
 function addVisit(){ const pid = $('visitPid').value.trim(); const type = $('visitType').value; const reason = $('visitReason').value.trim(); if(!pid||!reason) return alert('Enter patient ID and reason'); addForPatient('visits', pid, {type, reason, byAuthority: true}); alert('Visit recorded'); renderVisitsView(); }
