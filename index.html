@@ -129,8 +129,20 @@
     <p>© 2025 SehatSphere — Making Health Simple </p>
   </footer>
 
-  <!-- Optional config.js (copy config.template.js -> config.js in deployment) -->
-  <script src="config.js" onerror="console.info('No config.js loaded (optional)')"></script>
+  <!-- Optional config.js module (copy config.template.js -> config.js in deployment)
+       We import it as a module and assign to window.API_BASE_URL so static hosting works.
+  -->
+  <script>
+    // TODO: update after backend deploy
+    // Ensure a default API_BASE_URL is present for the frontend to use
+    window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:3001/api';
+  </script>
+  <script type="module">
+    // Attempt to import the module-style config.js. If present, set window.API_BASE_URL.
+    import('./config.js')
+      .then(mod => { window.API_BASE_URL = window.API_BASE_URL || mod.default; })
+      .catch(() => { console.info('No module config.js loaded (optional)'); });
+  </script>
   <script src="script.js"></script>
 </body>
 </html>

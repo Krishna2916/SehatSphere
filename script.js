@@ -1042,9 +1042,8 @@ async function hospitalUploadPrescriptionFile(){
   fd.append('profile', profile);
 
   try{
-    // TODO: Replace localhost with deployed backend URL via config.js when deploying
-    // Use local upload route for MVP
-    const res = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: fd });
+    // Use the runtime global set on the page. TODO: update after backend deploy
+    const res = await fetch(window.API_BASE_URL + '/upload', { method: 'POST', body: fd });
     if(!res.ok) throw new Error('Upload failed: ' + res.statusText);
     const json = await res.json();
     statusEl.innerText = `Uploaded: ${file.name}`;
