@@ -4,6 +4,33 @@
 const $ = id => document.getElementById(id);
 let session = { role: null, name: null, patientId: null };
 
+// Backend API base - change to your deployed backend when ready
+const API_BASE_URL = window.API_BASE_URL || 'http://localhost:3001/api';
+// Try backend by default; frontend falls back to localStorage if backend fails
+let useBackend = true;
+
+// Upload a single file to backend S3 endpoint. Returns file metadata or null on failure.
+async function uploadFileToServer(file, type = 'document') {
+  if (!file) return null;
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('patientId', session.patientId || 'guest');
+    fd.append('type', type);
+
+    const res = await fetch(`${API_BASE_URL}/files/upload`, {
+      method: 'POST',
+      body: fd
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    const data = await res.json();
+    return data.file || null;
+  } catch (e) {
+    console.warn('File upload failed, falling back to local storage', e.message);
+    return null;
+  }
+}
+
 // ===== UTILITY FUNCTIONS =====
 
 // Generate unique Health ID
@@ -288,29 +315,80 @@ function renderAskAIView() {
   }
 }
 
-function submitHealthQuery() {
+async function submitHealthQuery() {
   const symptom = $('symptomInput').value.trim();
   if (!symptom) {
     alert('Please describe your symptoms');
     return;
   }
 
-  // TODO: Replace this with real API call to /api/ai/analyzeSymptoms
-  // For MVP, use placeholder AI response
-  const response = getPlaceholderAIResponse(symptom);
+  // Try to upload any selected files first (non-blocking if upload fails)
+  const presFile = document.getElementById('filePresc')?.files?.[0] || null;
+  const medsFile = document.getElementById('fileMeds')?.files?.[0] || null;
+  const reportFile = document.getElementById('fileReport')?.files?.[0] || null;
 
-  // Store query
+  let uploaded = [];
+  if (useBackend) {
+    try {
+      if (presFile) {
+        const f = await uploadFileToServer(presFile, 'prescription');
+        if (f) uploaded.push(f);
+      }
+      if (medsFile) {
+        const f = await uploadFileToServer(medsFile, 'meds');
+        if (f) uploaded.push(f);
+      }
+      if (reportFile) {
+        const f = await uploadFileToServer(reportFile, 'report');
+        if (f) uploaded.push(f);
+      }
+    } catch (e) {
+      console.warn('One or more uploads failed', e.message);
+    }
+  }
+
+  // Call backend AI endpoint if available, otherwise fallback to placeholder
+  let responseText = null;
+  if (useBackend) {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/ai/analyzeSymptoms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symptom, patientId: session.patientId })
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        responseText = json.data?.response || json.response || null;
+      } else {
+        console.warn('AI API returned error, falling back to local response');
+        responseText = null;
+      }
+    } catch (e) {
+      console.warn('AI API call failed', e.message);
+      responseText = null;
+    }
+  }
+
+  if (!responseText) {
+    responseText = getPlaceholderAIResponse(symptom);
+  }
+
+  // Store query + uploaded files metadata
   addForPatient('aiQueries', session.patientId, {
     symptom: symptom,
-    response: response
+    response: responseText,
+    uploaded: uploaded
   });
 
   // Show response
   $('aiResponse').classList.remove('hidden');
-  $('responseText').innerHTML = response;
+  $('responseText').innerHTML = responseText;
 
-  // Clear input
+  // Clear input and files
   $('symptomInput').value = '';
+  if (document.getElementById('filePresc')) document.getElementById('filePresc').value = '';
+  if (document.getElementById('fileMeds')) document.getElementById('fileMeds').value = '';
+  if (document.getElementById('fileReport')) document.getElementById('fileReport').value = '';
 
   // Refresh history
   setTimeout(() => renderAskAIView(), 500);
