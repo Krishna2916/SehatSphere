@@ -371,34 +371,9 @@ async function submitHealthQuery() {
     }
   }
 
-  // If uploads failed or backend not available, save files locally (base64) so user can still keep them
-  async function saveFileFallback(file, type) {
-    if (!file) return null;
-    try {
-      const dataUrl = await readFileAsDataURL(file);
-      const obj = { patientId: session.patientId || 'guest', filename: file.name, type, dataUrl };
-      addRecord('fileUploads', obj);
-      return obj;
-    } catch (e) {
-      console.warn('Fallback save failed', e.message);
-      return null;
-    }
-  }
-
-  if (uploaded.length === 0) {
-    // attempt fallback saves
-    if (presFile) {
-      const f = await saveFileFallback(presFile, 'prescription');
-      if (f) uploaded.push(f);
-    }
-    if (medsFile) {
-      const f = await saveFileFallback(medsFile, 'meds');
-      if (f) uploaded.push(f);
-    }
-    if (reportFile) {
-      const f = await saveFileFallback(reportFile, 'report');
-      if (f) uploaded.push(f);
-    }
+  // If uploads failed and files were selected, notify the user (no local fallback for MVP)
+  if (uploaded.length === 0 && (presFile || medsFile || reportFile)) {
+    alert('One or more file uploads failed. Please try again.');
   }
 
   // Call backend AI endpoint if available, otherwise fallback to placeholder
@@ -1068,17 +1043,18 @@ async function hospitalUploadPrescriptionFile(){
 
   try{
     // TODO: Replace localhost with deployed backend URL via config.js when deploying
-    // Use existing backend upload route
-    const res = await fetch(`${API_BASE_URL}/files/upload`, { method: 'POST', body: fd });
+    // Use local upload route for MVP
+    const res = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: fd });
     if(!res.ok) throw new Error('Upload failed: ' + res.statusText);
     const json = await res.json();
     statusEl.innerText = `Uploaded: ${file.name}`;
-    addForPatient('fileUploads', pid, { filename: file.name, url: json.file?.url || json.url || null, type: 'prescription' });
+    // store returned path/url if provided
+    addForPatient('fileUploads', pid, { filename: file.name, url: json.file?.url || json.url || json.path || null, type: 'prescription' });
   } catch(e){
-    console.warn('Upload failed, saving locally', e.message);
-    statusEl.innerText = 'Upload failed, saved locally';
-    const dataUrl = await readFileAsDataURL(file);
-    addForPatient('fileUploads', pid, { filename: file.name, dataUrl, type: 'prescription' });
+    console.warn('Upload failed', e.message);
+    statusEl.innerText = 'Upload failed: ' + (e.message || 'unknown error');
+    // No local fallback for MVP
+    return;
   }
 }
 
@@ -1113,17 +1089,17 @@ async function hospitalUploadTestFile(){
 
   try{
     // TODO: Replace localhost with deployed backend URL via config.js when deploying
-    // Use existing backend upload route
-    const res = await fetch(`${API_BASE_URL}/files/upload`, { method: 'POST', body: fd });
+    // Use local upload route for MVP
+    const res = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: fd });
     if(!res.ok) throw new Error('Upload failed: ' + res.statusText);
     const json = await res.json();
     statusEl.innerText = `Uploaded: ${file.name}`;
-    addForPatient('fileUploads', pid, { filename: file.name, url: json.file?.url || json.url || null, type: 'test', name: testName });
+    addForPatient('fileUploads', pid, { filename: file.name, url: json.file?.url || json.url || json.path || null, type: 'test', name: testName });
   } catch(e){
-    console.warn('Upload failed, saving locally', e.message);
-    statusEl.innerText = 'Upload failed, saved locally';
-    const dataUrl = await readFileAsDataURL(file);
-    addForPatient('fileUploads', pid, { filename: file.name, dataUrl, type: 'test', name: testName });
+    console.warn('Upload failed', e.message);
+    statusEl.innerText = 'Upload failed: ' + (e.message || 'unknown error');
+    // No local fallback for MVP
+    return;
   }
 }
 
