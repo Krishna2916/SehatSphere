@@ -359,7 +359,12 @@ function renderAskAIView() {
         img.style.maxWidth = '160px';
         img.style.borderRadius = '6px';
         img.style.display = 'block';
-        preview.appendChild(img);
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.appendChild(img);
+        preview.appendChild(a);
         img.onload = () => URL.revokeObjectURL(url);
       } else {
         const el = document.createElement('div');
@@ -472,7 +477,12 @@ async function submitHealthQuery() {
         img.style.display = 'inline-block';
         img.style.marginRight = '8px';
         img.style.borderRadius = '6px';
-        previewsWrap.appendChild(img);
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.appendChild(img);
+        previewsWrap.appendChild(a);
       } else if (url) {
         const a = document.createElement('a');
         a.href = url;
