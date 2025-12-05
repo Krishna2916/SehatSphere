@@ -62,3 +62,5 @@ app.use('/uploads', express.static(uploadsDir));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`SehatSphere backend running on port ${PORT}`));
+
+// Backend initialized successfully
