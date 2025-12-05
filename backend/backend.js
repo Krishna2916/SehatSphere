@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 // Import AI routes
-const aiRoutes = require('./routes/ai');
+// const aiRoutes = require('./routes/ai');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -41,8 +41,8 @@ const upload = multer({
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
 
-// AI routes
-app.use('/api/ai', aiRoutes);
+// AI routes - temporarily disabled
+// app.use('/api/ai', aiRoutes);
 
 // File upload
 app.post('/api/upload', upload.single('file'), (req, res) => {
