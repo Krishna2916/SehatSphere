@@ -133,16 +133,10 @@
   <!-- Optional config.js module (copy config.template.js -> config.js in deployment)
        We import it as a module and assign to window.API_BASE_URL so static hosting works.
   -->
-  <script type="module">
-    // Import config.js and set API_BASE_URL, fallback to localhost if config fails
-    try {
-      const mod = await import('./config.js');
-      window.API_BASE_URL = mod.default;
-      console.log('✅ Config loaded:', window.API_BASE_URL);
-    } catch (e) {
-      window.API_BASE_URL = 'http://localhost:3001/api';
-      console.info('⚠️ No config.js found, using localhost fallback');
-    }
+  <script>
+    // Load config and set window.API_BASE_URL synchronously before script.js loads
+    window.API_BASE_URL = 'https://sehatsphere.onrender.com/api';
+    console.log('✅ Backend configured:', window.API_BASE_URL);
   </script>
   <script src="script.js"></script>
 </body>
