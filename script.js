@@ -436,25 +436,36 @@ async function submitHealthQuery() {
   let responseText = null;
   if (useBackend) {
     try {
+      console.log('🤖 Calling AI endpoint...');
+      console.log('API_BASE_URL:', API_BASE_URL);
+      console.log('Symptom:', symptom);
+      console.log('PatientId:', session.patientId);
+      
       const resp = await fetch(`${API_BASE_URL}/ai/analyzeSymptoms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symptom, patientId: session.patientId })
+        body: JSON.stringify({ symptom, patientId: session.patientId || 'guest' })
       });
+      
+      console.log('AI API Response Status:', resp.status);
+      
       if (resp.ok) {
         const json = await resp.json();
+        console.log('AI API Response JSON:', json);
         responseText = json.data?.response || json.response || null;
+        console.log('Extracted response text:', responseText);
       } else {
-        console.warn('AI API returned error, falling back to local response');
+        console.warn('AI API returned error', resp.status, resp.statusText);
         responseText = null;
       }
     } catch (e) {
-      console.warn('AI API call failed', e.message);
+      console.warn('AI API call failed', e.message, e);
       responseText = null;
     }
   }
 
   if (!responseText) {
+    console.log('Using placeholder response...');
     responseText = getPlaceholderAIResponse(symptom);
   }
 
