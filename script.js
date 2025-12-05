@@ -313,49 +313,21 @@ function renderAskAIView() {
   const el = $('view-askAI');
   el.innerHTML = `
     <h3>🤖 Ask AI About My Health</h3>
-    <p class="subtitle-text">Describe your symptoms or health concern. Our AI will explain in simple language.</p>
+    <p class="subtitle-text">Get instant health guidance from our AI assistant. Describe your symptoms and receive personalized advice.</p>
     
-    <div class="form-group">
-      <label for="symptomInput">Your Symptoms or Health Concern:</label>
-      <textarea id="symptomInput" placeholder="e.g., I have a headache and feel dizzy since morning"></textarea>
+    <div style="margin: 20px 0; padding: 20px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid var(--primary-blue);">
+      <p style="margin: 0 0 12px 0;"><strong>Our AI can help with:</strong></p>
+      <ul style="margin: 0; padding-left: 20px;">
+        <li>Symptom analysis (headache, fever, cough, etc.)</li>
+        <li>Quick health guidance</li>
+        <li>When to see a doctor</li>
+        <li>General wellness tips</li>
+      </ul>
     </div>
 
-    <div style="margin-bottom: 16px;">
-      <p style="font-weight: 600; margin-bottom: 8px;">📸 Attach Medical Documents (optional)</p>
-      <label style="display: block; margin-bottom: 8px;">
-        <span>📋 Prescription Photo</span>
-          <input type="file" id="filePresc" accept="image/*,.pdf,.doc,.docx" style="display: block; margin-top: 4px;" />
-          <div id="preview-filePresc" class="muted" style="margin-top:8px"></div>
-      </label>
-      <label style="display: block; margin-bottom: 8px;">
-        <span>💊 Medicine Strip Photo</span>
-          <input type="file" id="fileMeds" accept="image/*,.pdf,.doc,.docx" style="display: block; margin-top: 4px;" />
-          <div id="preview-fileMeds" class="muted" style="margin-top:8px"></div>
-      </label>
-      <label style="display: block; margin-bottom: 8px;">
-        <span>🧪 Lab Report Photo</span>
-          <input type="file" id="fileReport" accept="image/*,.pdf,.doc,.docx" style="display: block; margin-top: 4px;" />
-          <div id="preview-fileReport" class="muted" style="margin-top:8px"></div>
-      </label>
-    </div>
+    <button class="btn-primary" onclick="window.location.href='test-ai.html'" style="margin-top: 16px;">🤖 Open AI Chatbot</button>
 
-    <button class="btn-primary" onclick="submitHealthQuery()">Get Explanation</button>
-
-    <div id="aiResponse" class="hidden" style="margin-top: 20px; padding: 16px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid var(--primary-blue);">
-      <h4>📌 AI Explanation:</h4>
-      <p id="responseText"></p>
-    </div>
-
-    <div style="margin-top: 20px; padding: 12px; background: #f5f5f5; border-radius: 6px; border: 1px solid #ddd;">
-      <p style="margin: 0; font-size: 12px; color: #666;">
-        <strong>🔗 API Endpoint:</strong> <code style="background: #fff; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 11px;">https://sehatsphere.onrender.com/api/ai/analyzeSymptoms</code>
-      </p>
-      <p style="margin: 8px 0 0 0; font-size: 12px; color: #666;">
-        <a href="https://krishna2916.github.io/SehatSphere/test-ai.html" target="_blank" style="color: var(--primary-blue); text-decoration: none;">📊 Test AI Endpoint</a>
-      </p>
-    </div>
-
-    <h4 style="margin-top: 24px;">Your Query History</h4>
+    <h4 style="margin-top: 32px;">Your Query History</h4>
     <div id="queryHistory"></div>
   `;
 
@@ -367,221 +339,10 @@ function renderAskAIView() {
       .map(q => `<div class="list-item"><strong>Q:</strong> ${q.symptom}<br/><strong>Response:</strong> ${q.response.substring(0, 100)}...<br/><span class="muted">${q._ts}</span></div>`)
       .join('');
   } else {
-    $('queryHistory').innerHTML = '<div class="muted">No queries yet. Ask a question to get started!</div>';
+    $('queryHistory').innerHTML = '<div class="muted">No queries yet. Click the button above to get started!</div>';
   }
-
-  // Client-side previews for selected files (show thumbnail for images, filename for other files)
-  function setupFilePreview(inputId) {
-    const inp = document.getElementById(inputId);
-    const preview = document.getElementById('preview-' + inputId);
-    if (!inp || !preview) return;
-    inp.addEventListener('change', (e) => {
-      preview.innerHTML = '';
-      const f = e.target.files && e.target.files[0];
-      if (!f) return;
-      const isImage = /^image\//.test(f.type) || /\.(jpg|jpeg|png|gif)$/i.test(f.name);
-      if (isImage) {
-        const url = URL.createObjectURL(f);
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = f.name;
-        img.style.maxWidth = '160px';
-        img.style.borderRadius = '6px';
-        img.style.display = 'block';
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.appendChild(img);
-        preview.appendChild(a);
-        img.onload = () => URL.revokeObjectURL(url);
-      } else {
-        const el = document.createElement('div');
-        el.innerText = f.name;
-        preview.appendChild(el);
-      }
-    });
-  }
-
-  ['filePresc','fileMeds','fileReport'].forEach(id => setupFilePreview(id));
 }
 
-async function submitHealthQuery() {
-  const symptom = $('symptomInput').value.trim();
-  if (!symptom) {
-    alert('Please describe your symptoms');
-    return;
-  }
-
-  console.log('📤 Submitting health query:', symptom);
-  console.log('useBackend flag:', useBackend);
-  console.log('API_BASE_URL:', API_BASE_URL);
-
-  // Try to upload any selected files first (non-blocking if upload fails)
-  const presFile = document.getElementById('filePresc')?.files?.[0] || null;
-  const medsFile = document.getElementById('fileMeds')?.files?.[0] || null;
-  const reportFile = document.getElementById('fileReport')?.files?.[0] || null;
-
-  let uploaded = [];
-  if (useBackend) {
-    try {
-      if (presFile) {
-        const f = await uploadFileToServer(presFile, 'prescription');
-        if (f) uploaded.push(f);
-      }
-      if (medsFile) {
-        const f = await uploadFileToServer(medsFile, 'meds');
-        if (f) uploaded.push(f);
-      }
-      if (reportFile) {
-        const f = await uploadFileToServer(reportFile, 'report');
-        if (f) uploaded.push(f);
-      }
-    } catch (e) {
-      console.warn('One or more uploads failed', e.message);
-    }
-  }
-
-  // If uploads failed and files were selected, notify the user (no local fallback for MVP)
-  if (uploaded.length === 0 && (presFile || medsFile || reportFile)) {
-    alert('One or more file uploads failed. Please try again.');
-  }
-
-  // Call backend AI endpoint if available, otherwise fallback to placeholder
-  let responseText = null;
-  if (useBackend) {
-    try {
-      // Try the test endpoint first to see if backend is reachable
-      const testResp = await fetch(`${API_BASE_URL}/test-ai`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: 'ping' })
-      });
-      console.log('Test endpoint status:', testResp.status);
-      
-      // Now try the actual AI endpoint
-      const resp = await fetch(`${API_BASE_URL}/ai/analyzeSymptoms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symptom, patientId: session.patientId })
-      });
-      console.log('AI endpoint response status:', resp.status);
-      if (resp.ok) {
-        const json = await resp.json();
-        console.log('AI response JSON:', json);
-        responseText = json.data?.response || json.response || null;
-        console.log('Extracted response:', responseText);
-      } else {
-        console.warn('AI API returned error status:', resp.status, 'falling back to local response');
-        responseText = null;
-      }
-    } catch (e) {
-      console.warn('AI API call failed:', e.message);
-      responseText = null;
-    }
-  }
-
-  if (!responseText) {
-    responseText = getPlaceholderAIResponse(symptom);
-  }
-
-  // Store query + uploaded files metadata
-  addForPatient('aiQueries', session.patientId, {
-    symptom: symptom,
-    response: responseText,
-    uploaded: uploaded
-  });
-
-  // Show response - make sure element exists and is visible
-  const responseEl = document.getElementById('aiResponse');
-  const responseTextEl = document.getElementById('responseText');
-  
-  if (responseEl && responseTextEl) {
-    responseEl.classList.remove('hidden');
-    responseTextEl.innerHTML = responseText;
-    console.log('✅ Response displayed successfully');
-  } else {
-    console.error('❌ Response elements not found!', { responseEl, responseTextEl });
-    alert('Response: ' + responseText);
-  }
-
-  // Render uploaded file previews (images show as thumbnails, others as links)
-  function isImageFilename(name) {
-    if (!name) return false;
-    return /\.(jpg|jpeg|png|gif)$/i.test(name);
-  }
-
-  const previewsElId = 'uploadedPreviews';
-  // remove existing previews if any
-  let existing = document.getElementById(previewsElId);
-  if (existing) existing.remove();
-  const previewsWrap = document.createElement('div');
-  previewsWrap.id = previewsElId;
-  previewsWrap.style.marginTop = '12px';
-  if (uploaded && uploaded.length) {
-    uploaded.forEach(u => {
-      // u might be different shapes depending on backend response
-      const url = u.url || u.path || (u.file && (u.file.url || u.file.location)) || null;
-      const name = u.filename || u.originalName || (u.file && (u.file.filename || u.file.originalname)) || u.type || 'file';
-      if (url && isImageFilename(name)) {
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = name;
-        img.style.maxWidth = '160px';
-        img.style.display = 'inline-block';
-        img.style.marginRight = '8px';
-        img.style.borderRadius = '6px';
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.appendChild(img);
-        previewsWrap.appendChild(a);
-      } else if (url) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.innerText = `Open ${name}`;
-        a.style.display = 'block';
-        a.style.marginTop = '6px';
-        previewsWrap.appendChild(a);
-      }
-    });
-    $('aiResponse').appendChild(previewsWrap);
-  }
-
-  // Clear input and files
-  $('symptomInput').value = '';
-  if (document.getElementById('filePresc')) document.getElementById('filePresc').value = '';
-  if (document.getElementById('fileMeds')) document.getElementById('fileMeds').value = '';
-  if (document.getElementById('fileReport')) document.getElementById('fileReport').value = '';
-
-  // Refresh history
-  setTimeout(() => renderAskAIView(), 500);
-}
-
-function getPlaceholderAIResponse(symptom) {
-  // Placeholder responses - to be replaced with real AI API
-  const responses = {
-    headache: '💡 <strong>Headache Explanation:</strong><br/>Headaches can be caused by stress, dehydration, or tension. <br/>✅ <strong>What to do:</strong> Drink water, rest in a cool dark room, take a painkiller if needed, and see a doctor if it persists for more than 2 days.',
-    fever: '💡 <strong>Fever Explanation:</strong><br/>Fever is your body\'s way of fighting infection. Most fevers are caused by viral infections (like cold or flu).<br/>✅ <strong>What to do:</strong> Rest, drink fluids, take fever medicine (paracetamol), wear light clothing. See a doctor if fever is >101°F or lasts >3 days.',
-    default: '💡 <strong>Health Note:</strong><br/>Your concern has been noted. Based on your description, we recommend:<br/>✅ Monitor your symptoms for 24-48 hours<br/>✅ Stay hydrated and get adequate rest<br/>✅ Contact your doctor if symptoms worsen or persist<br/>⚠️ Seek immediate medical care if you experience chest pain, difficulty breathing, or severe symptoms.'
-  };
-
-  const key = Object.keys(responses).find(k => symptom.toLowerCase().includes(k));
-  return responses[key] || responses.default;
-}
-
-// Helper: read a File into a data URL (for local fallback storage)
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = err => reject(err);
-    reader.readAsDataURL(file);
-  });
-}
 
 // My Reports & Prescriptions
 function renderMyReportsView() {
