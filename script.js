@@ -483,9 +483,18 @@ async function submitHealthQuery() {
     uploaded: uploaded
   });
 
-  // Show response
-  $('aiResponse').classList.remove('hidden');
-  $('responseText').innerHTML = responseText;
+  // Show response - make sure element exists and is visible
+  const responseEl = document.getElementById('aiResponse');
+  const responseTextEl = document.getElementById('responseText');
+  
+  if (responseEl && responseTextEl) {
+    responseEl.classList.remove('hidden');
+    responseTextEl.innerHTML = responseText;
+    console.log('✅ Response displayed successfully');
+  } else {
+    console.error('❌ Response elements not found!', { responseEl, responseTextEl });
+    alert('Response: ' + responseText);
+  }
 
   // Render uploaded file previews (images show as thumbnails, others as links)
   function isImageFilename(name) {
