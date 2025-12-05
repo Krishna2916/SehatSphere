@@ -3,40 +3,65 @@ const router = express.Router();
 const aws = require('aws-sdk');
 const multer = require('multer');
 const multerS3 = require('multer-s3');
+const path = require('path');
+const fs = require('fs');
 const File = require('../models/File');
 
 // Require AWS credentials from env
 const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET } = process.env;
 
-if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !S3_BUCKET) {
-  console.warn('AWS S3 not fully configured in env. File uploads will fail unless configured.');
-}
+let upload;
 
-aws.config.update({
-  accessKeyId: AWS_ACCESS_KEY_ID,
-  secretAccessKey: AWS_SECRET_ACCESS_KEY,
-  region: AWS_REGION || 'us-east-1'
-});
+if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY && S3_BUCKET) {
+  // Configure AWS S3
+  aws.config.update({
+    accessKeyId: AWS_ACCESS_KEY_ID,
+    secretAccessKey: AWS_SECRET_ACCESS_KEY,
+    region: AWS_REGION || 'us-east-1'
+  });
 
-const s3 = new aws.S3();
+  const s3 = new aws.S3();
 
-// multer-s3 storage
-const upload = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: S3_BUCKET,
-    acl: 'private',
-    metadata: function (req, file, cb) {
-      cb(null, { fieldName: file.fieldname });
+  // Use multer-s3 storage when S3 is configured
+  upload = multer({
+    storage: multerS3({
+      s3: s3,
+      bucket: S3_BUCKET,
+      acl: 'private',
+      metadata: function (req, file, cb) {
+        cb(null, { fieldName: file.fieldname });
+      },
+      key: function (req, file, cb) {
+        const pid = req.body.patientId || 'unknown';
+        const ts = Date.now();
+        const key = `${pid}/${ts}-${file.originalname.replace(/\s+/g,'_')}`;
+        cb(null, key);
+      }
+    })
+  });
+} else {
+  console.warn('AWS S3 not fully configured in env. Falling back to local disk storage for uploads.');
+
+  // Ensure local uploads directory exists (backend/uploads)
+  const uploadsDir = path.join(__dirname, '..', 'uploads');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, uploadsDir);
     },
-    key: function (req, file, cb) {
-      const pid = req.body.patientId || 'unknown';
+    filename: function (req, file, cb) {
       const ts = Date.now();
-      const key = `${pid}/${ts}-${file.originalname.replace(/\s+/g,'_')}`;
-      cb(null, key);
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-()_ ]/g, '_');
+      cb(null, `${ts}-${safeName}`);
     }
-  })
-});
+  });
+
+  upload = multer({
+    storage,
+    limits: { fileSize: 20 * 1024 * 1024 }
+  });
+}
 
 // Single file upload endpoint
 router.post('/upload', upload.single('file'), async (req, res) => {

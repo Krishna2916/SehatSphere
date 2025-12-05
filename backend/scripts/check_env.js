@@ -24,4 +24,4 @@ if (missing.length === 0) {
   missing.forEach(k => console.error(' -', k));
   console.error('\nPlease set them (e.g., in Render env settings or a .env file).');
   process.exit(1);
-}
+}python3 backend.py
