@@ -9,6 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Import AI routes
+const aiRoutes = require('./routes/ai');
+
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -37,6 +40,9 @@ const upload = multer({
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
+
+// AI routes
+app.use('/api/ai', aiRoutes);
 
 // File upload
 app.post('/api/upload', upload.single('file'), (req, res) => {
