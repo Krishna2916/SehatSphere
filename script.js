@@ -450,15 +450,18 @@ async function submitHealthQuery() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symptom, patientId: session.patientId })
       });
+      console.log('AI endpoint response status:', resp.status);
       if (resp.ok) {
         const json = await resp.json();
+        console.log('AI response JSON:', json);
         responseText = json.data?.response || json.response || null;
+        console.log('Extracted response:', responseText);
       } else {
-        console.warn('AI API returned error, falling back to local response');
+        console.warn('AI API returned error status:', resp.status, 'falling back to local response');
         responseText = null;
       }
     } catch (e) {
-      console.warn('AI API call failed', e.message);
+      console.warn('AI API call failed:', e.message);
       responseText = null;
     }
   }
