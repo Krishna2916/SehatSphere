@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Endpoint Test</title>
+  <style>
+    body { font-family: Arial; padding: 40px; max-width: 800px; margin: 0 auto; }
+    textarea { width: 100%; padding: 10px; margin: 10px 0; font-size: 16px; }
+    button { background: #2196F3; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+    button:hover { background: #1976D2; }
+    .result { background: #e3f2fd; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #2196F3; }
+    .error { background: #ffebee; border-left-color: #f44336; }
+    pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>🤖 AI Endpoint Test</h1>
+  
+  <h3>API Configuration:</h3>
+  <pre id="config">Loading...</pre>
+  
+  <h3>Enter Symptom:</h3>
+  <textarea id="symptom" rows="3" placeholder="e.g., I have a headache and feel dizzy">I have a headache</textarea>
+  
+  <button onclick="testAI()">Test AI Endpoint</button>
+  
+  <div id="result"></div>
+  
+  <h3>Console Logs:</h3>
+  <pre id="logs"></pre>
+
+  <script>
+    const API_BASE_URL = 'https://sehatsphere.onrender.com/api';
+    document.getElementById('config').textContent = 'API_BASE_URL: ' + API_BASE_URL;
+    
+    const log = (msg) => {
+      const logsEl = document.getElementById('logs');
+      logsEl.textContent += new Date().toISOString() + ' - ' + msg + '\n';
+      console.log(msg);
+    };
+    
+    async function testAI() {
+      const resultEl = document.getElementById('result');
+      const symptom = document.getElementById('symptom').value.trim();
+      
+      if (!symptom) {
+        alert('Please enter a symptom');
+        return;
+      }
+      
+      resultEl.innerHTML = '<div class="result">Testing...</div>';
+      log('Starting AI test...');
+      log('Symptom: ' + symptom);
+      
+      try {
+        const url = `${API_BASE_URL}/ai/analyzeSymptoms`;
+        log('Fetching: ' + url);
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symptom, patientId: 'test123' })
+        });
+        
+        log('Response status: ' + response.status + ' ' + response.statusText);
+        
+        if (response.ok) {
+          const json = await response.json();
+          log('Response JSON: ' + JSON.stringify(json, null, 2));
+          
+          const responseText = json.data?.response || json.response || 'No response found';
+          
+          resultEl.innerHTML = `
+            <div class="result">
+              <h4>✅ Success!</h4>
+              <p><strong>AI Response:</strong></p>
+              <p>${responseText}</p>
+              <details>
+                <summary>Full JSON Response</summary>
+                <pre>${JSON.stringify(json, null, 2)}</pre>
+              </details>
+            </div>
+          `;
+        } else {
+          const text = await response.text();
+          log('Error response: ' + text);
+          resultEl.innerHTML = `
+            <div class="result error">
+              <h4>❌ Error ${response.status}</h4>
+              <pre>${text}</pre>
+            </div>
+          `;
+        }
+      } catch (error) {
+        log('❌ Exception: ' + error.message);
+        resultEl.innerHTML = `
+          <div class="result error">
+            <h4>❌ Request Failed</h4>
+            <p>${error.message}</p>
+          </div>
+        `;
+      }
+    }
+    
+    log('Test page loaded');
+  </script>
+</body>
+</html>
