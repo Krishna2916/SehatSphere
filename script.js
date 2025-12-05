@@ -9,34 +9,6 @@ const API_BASE_URL = window.API_BASE_URL || 'http://localhost:3001/api';
 // Try backend by default; frontend falls back to localStorage if backend fails
 let useBackend = true;
 
-// ===== DEBUG PANEL =====
-let debugLogs = [];
-function addDebugLog(msg) {
-  const timestamp = new Date().toLocaleTimeString();
-  const fullMsg = `[${timestamp}] ${msg}`;
-  debugLogs.push(fullMsg);
-  const debugLog = $('debugLog');
-  if (debugLog) {
-    debugLog.innerHTML += fullMsg + '<br>';
-    debugLog.scrollTop = debugLog.scrollHeight;
-  }
-}
-
-function toggleDebugPanel() {
-  const panel = $('debugPanel');
-  if (panel) {
-    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-  }
-}
-
-function clearDebugLog() {
-  debugLogs = [];
-  const debugLog = $('debugLog');
-  if (debugLog) {
-    debugLog.innerHTML = '';
-  }
-}
-
 // Upload a single file to backend S3 endpoint. Returns file metadata or null on failure.
 async function uploadFileToServer(file, type = 'document') {
   if (!file) return null;
@@ -464,10 +436,10 @@ async function submitHealthQuery() {
   let responseText = null;
   if (useBackend) {
     try {
-      addDebugLog('🤖 Calling AI endpoint...');
-      addDebugLog('API_BASE_URL: ' + API_BASE_URL);
-      addDebugLog('Symptom: ' + symptom);
-      addDebugLog('PatientId: ' + session.patientId);
+      console.log('🤖 Calling AI endpoint...');
+      console.log('API_BASE_URL:', API_BASE_URL);
+      console.log('Symptom:', symptom);
+      console.log('PatientId:', session.patientId);
       
       const resp = await fetch(`${API_BASE_URL}/ai/analyzeSymptoms`, {
         method: 'POST',
@@ -475,19 +447,19 @@ async function submitHealthQuery() {
         body: JSON.stringify({ symptom, patientId: session.patientId || 'guest' })
       });
       
-      addDebugLog('AI API Response Status: ' + resp.status);
+      console.log('AI API Response Status:', resp.status);
       
       if (resp.ok) {
         const json = await resp.json();
-        addDebugLog('AI API Response: ' + JSON.stringify(json).substring(0, 100));
+        console.log('AI API Response JSON:', json);
         responseText = json.data?.response || json.response || null;
-        addDebugLog('Extracted response: ' + (responseText ? responseText.substring(0, 80) : 'null'));
+        console.log('Extracted response text:', responseText);
       } else {
-        addDebugLog('AI API returned error ' + resp.status + ' ' + resp.statusText);
+        console.warn('AI API returned error', resp.status, resp.statusText);
         responseText = null;
       }
     } catch (e) {
-      addDebugLog('AI API call failed: ' + e.message);
+      console.warn('AI API call failed', e.message, e);
       responseText = null;
     }
   }
