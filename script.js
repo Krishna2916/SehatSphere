@@ -325,7 +325,7 @@ function renderAskAIView() {
       </ul>
     </div>
 
-    <button class="btn-primary" onclick="window.location.href='test-ai.html'" style="margin-top: 16px;">🤖 Open AI Chatbot</button>
+    <button class="btn-primary" onclick="window.location.href='https://krishna2916.github.io/SehatSphere/test-ai.html'" style="margin-top: 16px;">🤖 Open AI Chatbot</button>
 
     <h4 style="margin-top: 32px;">Your Query History</h4>
     <div id="queryHistory"></div>
