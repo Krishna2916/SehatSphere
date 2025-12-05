@@ -101,13 +101,31 @@ async function checkBackendHealth() {
       const j = await res.json();
       console.log('Backend healthy:', j);
       useBackend = true;
+      const statusEl = document.getElementById('backendStatus');
+      if (statusEl) {
+        statusEl.innerText = 'Backend: Online';
+        statusEl.style.background = 'linear-gradient(90deg,#2e7d32,#66bb6a)';
+        statusEl.style.color = '#fff';
+      }
     } else {
       console.warn('Backend health check failed, using local fallback');
       useBackend = false;
+      const statusEl = document.getElementById('backendStatus');
+      if (statusEl) {
+        statusEl.innerText = 'Backend: Unhealthy';
+        statusEl.style.background = 'linear-gradient(90deg,#f57c00,#ffb74d)';
+        statusEl.style.color = '#fff';
+      }
     }
   } catch (e) {
     console.warn('Backend unreachable, using local fallback', e.message);
     useBackend = false;
+    const statusEl = document.getElementById('backendStatus');
+    if (statusEl) {
+      statusEl.innerText = 'Backend: Offline';
+      statusEl.style.background = 'linear-gradient(90deg,#c62828,#ef5350)';
+      statusEl.style.color = '#fff';
+    }
   }
 }
 
