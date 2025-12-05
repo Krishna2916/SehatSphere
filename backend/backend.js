@@ -49,6 +49,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date() });
 });
 
+// Direct test endpoint for AI (no routing complexity)
+app.post('/api/test-ai', (req, res) => {
+  res.json({ test: 'working', received: req.body });
+});
+
 // File upload endpoint
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) {

@@ -451,6 +451,15 @@ async function submitHealthQuery() {
   let responseText = null;
   if (useBackend) {
     try {
+      // Try the test endpoint first to see if backend is reachable
+      const testResp = await fetch(`${API_BASE_URL}/test-ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test: 'ping' })
+      });
+      console.log('Test endpoint status:', testResp.status);
+      
+      // Now try the actual AI endpoint
       const resp = await fetch(`${API_BASE_URL}/ai/analyzeSymptoms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
