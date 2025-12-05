@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Backend Connection Test</title>
+  <style>
+    body { font-family: Arial; padding: 40px; background: #f5f5f5; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .status { padding: 20px; margin: 20px 0; border-radius: 8px; font-size: 18px; font-weight: bold; text-align: center; }
+    .online { background: #4caf50; color: white; }
+    .offline { background: #f44336; color: white; }
+    .testing { background: #ff9800; color: white; }
+    pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+    button { background: #2196F3; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+    button:hover { background: #1976D2; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 SehatSphere Backend Test</h1>
+    
+    <div id="status" class="status testing">Testing connection...</div>
+    
+    <h3>Config URL:</h3>
+    <pre id="configUrl">Loading...</pre>
+    
+    <h3>Response:</h3>
+    <pre id="response">Waiting...</pre>
+    
+    <h3>Logs:</h3>
+    <pre id="logs"></pre>
+    
+    <button onclick="testAgain()">Test Again</button>
+  </div>
+
+  <script type="module">
+    import API_BASE_URL from './config.js';
+    
+    const log = (msg) => {
+      const logsEl = document.getElementById('logs');
+      logsEl.textContent += msg + '\n';
+      console.log(msg);
+    };
+    
+    document.getElementById('configUrl').textContent = API_BASE_URL;
+    log(`Config loaded: ${API_BASE_URL}`);
+    
+    async function testBackend() {
+      const statusEl = document.getElementById('status');
+      const responseEl = document.getElementById('response');
+      
+      try {
+        statusEl.textContent = 'Testing connection...';
+        statusEl.className = 'status testing';
+        
+        log(`Fetching: ${API_BASE_URL}/health`);
+        const startTime = Date.now();
+        
+        const response = await fetch(`${API_BASE_URL}/health`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        const elapsed = Date.now() - startTime;
+        log(`Response received in ${elapsed}ms`);
+        log(`Status: ${response.status} ${response.statusText}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          log(`Data: ${JSON.stringify(data, null, 2)}`);
+          
+          statusEl.textContent = '✅ Backend Online!';
+          statusEl.className = 'status online';
+          responseEl.textContent = JSON.stringify(data, null, 2);
+        } else {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      } catch (error) {
+        log(`❌ Error: ${error.message}`);
+        statusEl.textContent = '❌ Backend Offline';
+        statusEl.className = 'status offline';
+        responseEl.textContent = `Error: ${error.message}`;
+      }
+    }
+    
+    window.testAgain = testBackend;
+    
+    // Auto-test on load
+    testBackend();
+  </script>
+</body>
+</html>
