@@ -96,10 +96,12 @@ window.onload = () => {
 // Check backend health and set useBackend flag accordingly
 async function checkBackendHealth() {
   try {
+    console.log('🔍 Checking backend health at:', `${API_BASE_URL}/health`);
     const res = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+    console.log('Health check response status:', res.status);
     if (res.ok) {
       const j = await res.json();
-      console.log('Backend healthy:', j);
+      console.log('✅ Backend healthy:', j);
       useBackend = true;
       const statusEl = document.getElementById('backendStatus');
       if (statusEl) {
@@ -108,7 +110,7 @@ async function checkBackendHealth() {
         statusEl.style.color = '#fff';
       }
     } else {
-      console.warn('Backend health check failed, using local fallback');
+      console.warn('❌ Backend health check failed with status:', res.status, 'using local fallback');
       useBackend = false;
       const statusEl = document.getElementById('backendStatus');
       if (statusEl) {
@@ -410,6 +412,10 @@ async function submitHealthQuery() {
     alert('Please describe your symptoms');
     return;
   }
+
+  console.log('📤 Submitting health query:', symptom);
+  console.log('useBackend flag:', useBackend);
+  console.log('API_BASE_URL:', API_BASE_URL);
 
   // Try to upload any selected files first (non-blocking if upload fails)
   const presFile = document.getElementById('filePresc')?.files?.[0] || null;
