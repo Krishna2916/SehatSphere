@@ -20,7 +20,6 @@ function addDebugLog(msg) {
     debugLog.innerHTML += fullMsg + '<br>';
     debugLog.scrollTop = debugLog.scrollHeight;
   }
-  console.log(fullMsg);
 }
 
 function toggleDebugPanel() {
@@ -37,13 +36,6 @@ function clearDebugLog() {
     debugLog.innerHTML = '';
   }
 }
-
-// Override console.log to show in debug panel
-const originalLog = console.log;
-console.log = function(...args) {
-  addDebugLog(args.join(' '));
-  originalLog.apply(console, args);
-};
 
 // Upload a single file to backend S3 endpoint. Returns file metadata or null on failure.
 async function uploadFileToServer(file, type = 'document') {
@@ -472,10 +464,10 @@ async function submitHealthQuery() {
   let responseText = null;
   if (useBackend) {
     try {
-      console.log('🤖 Calling AI endpoint...');
-      console.log('API_BASE_URL:', API_BASE_URL);
-      console.log('Symptom:', symptom);
-      console.log('PatientId:', session.patientId);
+      addDebugLog('🤖 Calling AI endpoint...');
+      addDebugLog('API_BASE_URL: ' + API_BASE_URL);
+      addDebugLog('Symptom: ' + symptom);
+      addDebugLog('PatientId: ' + session.patientId);
       
       const resp = await fetch(`${API_BASE_URL}/ai/analyzeSymptoms`, {
         method: 'POST',
@@ -483,19 +475,19 @@ async function submitHealthQuery() {
         body: JSON.stringify({ symptom, patientId: session.patientId || 'guest' })
       });
       
-      console.log('AI API Response Status:', resp.status);
+      addDebugLog('AI API Response Status: ' + resp.status);
       
       if (resp.ok) {
         const json = await resp.json();
-        console.log('AI API Response JSON:', json);
+        addDebugLog('AI API Response: ' + JSON.stringify(json).substring(0, 100));
         responseText = json.data?.response || json.response || null;
-        console.log('Extracted response text:', responseText);
+        addDebugLog('Extracted response: ' + (responseText ? responseText.substring(0, 80) : 'null'));
       } else {
-        console.warn('AI API returned error', resp.status, resp.statusText);
+        addDebugLog('AI API returned error ' + resp.status + ' ' + resp.statusText);
         responseText = null;
       }
     } catch (e) {
-      console.warn('AI API call failed', e.message, e);
+      addDebugLog('AI API call failed: ' + e.message);
       responseText = null;
     }
   }
