@@ -83,7 +83,7 @@ function queryForPatient(kind, pid) {
 // Initialize localStorage keys
 ['patients', 'profiles', 'meds', 'prescriptions', 'tests', 'issues', 'appointments', 'moods', 'consults', 'consultReplies', 'contacts', 'visits', 'sos', 'aiQueries', 'fileUploads'].forEach(ensureKey);
 
-// Hide splash screen
+// Hide splash screen and initialize
 window.onload = () => {
   setTimeout(() => {
     const s = $('splash');
@@ -91,6 +91,12 @@ window.onload = () => {
   }, 600);
   // After UI ready, check backend health
   checkBackendHealth();
+  // Initialize login listeners
+  initializeLoginListeners();
+  // Load saved credentials if "Remember Me" was checked
+  loadSavedCredentials();
+  // Check for auto-login
+  checkAutoLogin();
 };
 
 // Check backend health and set useBackend flag accordingly
@@ -131,35 +137,214 @@ async function checkBackendHealth() {
   }
 }
 
-// ===== LOGIN FLOW =====
+// ===== REMEMBER ME & AUTO-LOGIN =====
 
-$('loginBtn').addEventListener('click', () => {
-  const name = $('nameInput').value.trim() || 'Anonymous';
-  const role = $('roleSelect').value;
-  let pid = $('patientIdInput').value.trim();
-
-  if (!pid) {
-    // Generate unique Health ID
-    do {
-      pid = genHealthId(name);
-    } while (loadAll('patients').find(p => p.patientId === pid));
+function saveCredentials(email, password, name, role) {
+  if ($('rememberMe').checked) {
+    localStorage.setItem('savedEmail', email);
+    localStorage.setItem('savedPassword', btoa(password)); // Basic encoding (not secure for production)
+    localStorage.setItem('savedName', name);
+    localStorage.setItem('savedRole', role);
+    localStorage.setItem('rememberMe', 'true');
+  } else {
+    localStorage.removeItem('savedEmail');
+    localStorage.removeItem('savedPassword');
+    localStorage.removeItem('savedName');
+    localStorage.removeItem('savedRole');
+    localStorage.removeItem('rememberMe');
   }
+}
 
-  // Create patient entry if new
-  const patients = loadAll('patients');
-  if (!patients.find(p => p.patientId === pid)) {
+function loadSavedCredentials() {
+  const rememberMe = localStorage.getItem('rememberMe');
+  if (rememberMe === 'true') {
+    const email = localStorage.getItem('savedEmail');
+    const password = localStorage.getItem('savedPassword');
+    const name = localStorage.getItem('savedName');
+    const role = localStorage.getItem('savedRole');
+    
+    if (email) $('emailInput').value = email;
+    if (password) $('passwordInput').value = atob(password); // Decode
+    if (name) $('nameInput').value = name;
+    if (role) $('roleSelect').value = role;
+    $('rememberMe').checked = true;
+  }
+}
+
+function checkAutoLogin() {
+  // Auto-login if Firebase session exists
+  if (window.auth) {
+    window.auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        console.log('✅ Firebase session detected, auto-logging in:', user.uid);
+        
+        const name = user.displayName || localStorage.getItem('savedName') || 'User';
+        const role = localStorage.getItem('savedRole') || 'patient';
+        const pid = localStorage.getItem(`firebase_uid_${user.uid}`) || genHealthId(name);
+        
+        session = { role, name, patientId: pid, firebaseUid: user.uid, email: user.email };
+        setTimeout(afterLogin, 120);
+      }
+    });
+  }
+}
+
+// ===== LOGIN FLOW (Firebase or Simple) =====
+
+function initializeLoginListeners() {
+  const loginBtn = document.getElementById('loginBtn');
+  const signupBtn = document.getElementById('signupBtn');
+  
+  if (!loginBtn || !signupBtn) {
+    console.error('❌ Login buttons not found!');
+    return;
+  }
+  
+  console.log('✅ Login listeners initialized');
+  
+  // Sign In with Firebase (if available) or Simple Login
+  loginBtn.addEventListener('click', async () => {
+    console.log('🔘 Login button clicked');
+    const email = $('emailInput').value.trim();
+    const password = $('passwordInput').value.trim();
+    const name = $('nameInput').value.trim();
+    const role = $('roleSelect').value;
+
+    // Validation
+    if (!name) {
+      alert('Please enter your name to continue');
+      $('nameInput').focus();
+      return;
+    }
+
+    // Check if Firebase is available
+    if (window.auth && email && password) {
+    try {
+      // Firebase Authentication
+      const userCredential = await window.auth.signInWithEmailAndPassword(email, password);
+      const user = userCredential.user;
+      
+      console.log('✅ Firebase sign in successful:', user.uid);
+      
+      let pid = localStorage.getItem(`firebase_uid_${user.uid}`) || genHealthId(name);
+      
+      const patients = loadAll('patients');
+      if (!patients.find(p => p.patientId === pid)) {
+        patients.push({
+          patientId: pid,
+          name: name,
+          role: role,
+          firebaseUid: user.uid,
+          email: user.email,
+          created: new Date().toLocaleString()
+        });
+        saveAll('patients', patients);
+        localStorage.setItem(`firebase_uid_${user.uid}`, pid);
+      }
+
+      session = { role, name, patientId: pid, firebaseUid: user.uid, email: user.email };
+      
+      // Save credentials if Remember Me is checked
+      saveCredentials(email, password, name, role);
+      
+      setTimeout(afterLogin, 120);
+      
+    } catch (error) {
+      console.error('Firebase sign in error:', error);
+      alert(`Sign in failed: ${error.message}`);
+    }
+  } else {
+    // Simple login without Firebase
+    console.log('⚠️ Firebase not configured, using simple login');
+    
+    let pid = genHealthId(name);
+    
+    const patients = loadAll('patients');
+    if (!patients.find(p => p.patientId === pid)) {
+      patients.push({
+        patientId: pid,
+        name: name,
+        role: role,
+        email: email || null,
+        created: new Date().toLocaleString()
+      });
+      saveAll('patients', patients);
+    }
+
+    session = { role, name, patientId: pid, email: email || null };
+    
+    // Save credentials if Remember Me is checked
+    saveCredentials(email, password, name, role);
+    
+    setTimeout(afterLogin, 120);
+  }
+});
+
+  // Sign Up with Firebase (if available)
+  signupBtn.addEventListener('click', async () => {
+    console.log('🔘 Signup button clicked');
+    const email = $('emailInput').value.trim();
+    const password = $('passwordInput').value.trim();
+    const name = $('nameInput').value.trim();
+    const role = $('roleSelect').value;
+
+    // Validation
+    if (!name) {
+      alert('❌ Please enter your name');
+      return;
+    }
+
+    if (!window.auth) {
+      alert('⚠️ Firebase not configured. Please use "Sign In" button for simple login.');
+      return;
+    }
+
+    if (!email || !password) {
+      alert('❌ Please enter email and password for Firebase signup');
+      return;
+    }
+
+    if (password.length < 6) {
+      alert('❌ Password must be at least 6 characters');
+      return;
+    }
+
+  try {
+    const userCredential = await window.auth.createUserWithEmailAndPassword(email, password);
+    const user = userCredential.user;
+    
+    console.log('✅ Firebase account created:', user.uid);
+    
+    await user.updateProfile({ displayName: name });
+    
+    const pid = genHealthId(name);
+    localStorage.setItem(`firebase_uid_${user.uid}`, pid);
+    
+    const patients = loadAll('patients');
     patients.push({
       patientId: pid,
       name: name,
       role: role,
+      firebaseUid: user.uid,
+      email: user.email,
       created: new Date().toLocaleString()
     });
     saveAll('patients', patients);
-  }
 
-  session = { role, name, patientId: pid };
-  setTimeout(afterLogin, 120);
+    session = { role, name, patientId: pid, firebaseUid: user.uid, email: user.email };
+    
+    // Save credentials if Remember Me is checked
+    saveCredentials(email, password, name, role);
+    
+    alert(`✅ Account created! Your Health ID: ${pid}`);
+    setTimeout(afterLogin, 120);
+    
+  } catch (error) {
+    console.error('Firebase sign up error:', error);
+    alert(`Sign up failed: ${error.message}`);
+  }
 });
+}
 
 function afterLogin() {
   $('loginSection').classList.add('hidden');
@@ -184,8 +369,16 @@ function afterLogin() {
 }
 
 // Logout
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
   if (e.target && e.target.id === 'logoutBtn') {
+    try {
+      if (window.auth) {
+        await window.auth.signOut();
+        console.log('✅ Firebase sign out successful');
+      }
+    } catch (error) {
+      console.error('Firebase sign out error:', error);
+    }
     location.reload();
   }
 });

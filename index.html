@@ -30,8 +30,18 @@
     <!-- LOGIN SECTION -->
     <section id="loginSection" class="card login-card">
       <h2>Welcome to SehatSphere</h2>
-      <p class="subtitle-text">Sign in or create a new account</p>
+      <p class="subtitle-text">Sign in or create a new account with Firebase</p>
       
+      <div class="form-group">
+        <label for="emailInput">Email Address</label>
+        <input id="emailInput" type="email" placeholder="your.email@example.com" />
+      </div>
+
+      <div class="form-group">
+        <label for="passwordInput">Password</label>
+        <input id="passwordInput" type="password" placeholder="Enter password (min 6 characters)" />
+      </div>
+
       <div class="form-group">
         <label for="nameInput">Your Full Name</label>
         <input id="nameInput" type="text" placeholder="e.g., Ravi Kumar" />
@@ -48,15 +58,18 @@
         </select>
       </div>
 
-      <div class="form-group">
-        <label for="patientIdInput">Your Health ID (optional)</label>
-        <input id="patientIdInput" type="text" placeholder="Leave empty to create a new one" />
+      <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+        <input type="checkbox" id="rememberMe" style="width: auto; margin: 0;" />
+        <label for="rememberMe" style="margin: 0; cursor: pointer;">Remember me</label>
       </div>
 
-      <button id="loginBtn" class="btn-primary">Continue</button>
-      <p class="info-note">
-        📱 <strong>New user?</strong> Leave Health ID blank. We'll create one for you.<br>
-        🔗 <strong>Existing user?</strong> Enter your Health ID to link your records.
+      <button id="loginBtn" class="btn-primary">Sign In</button>
+      <button id="signupBtn" class="btn-secondary" style="margin-top: 12px;">Create Account</button>
+      
+      <p class="info-note" style="margin-top: 16px;">
+        🔐 Secure authentication powered by Firebase<br>
+        📱 New user? Click "Create Account"<br>
+        🔑 Existing user? Click "Sign In"
       </p>
     </section>
 
@@ -130,13 +143,25 @@
     <p>© 2025 SehatSphere — Making Health Simple </p>
   </footer>
 
-  <!-- Optional config.js module (copy config.template.js -> config.js in deployment)
-       We import it as a module and assign to window.API_BASE_URL so static hosting works.
-  -->
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  
+  <!-- Firebase Config -->
+  <script src="firebase-config.js"></script>
+  
+  <!-- Backend Config -->
   <script>
     // Load config and set window.API_BASE_URL synchronously before script.js loads
     window.API_BASE_URL = 'https://sehatsphere.onrender.com/api';
     console.log('✅ Backend configured:', window.API_BASE_URL);
+    
+    // Initialize Firebase
+    if (typeof firebaseConfig !== 'undefined') {
+      firebase.initializeApp(firebaseConfig);
+      window.auth = firebase.auth();
+      console.log('✅ Firebase initialized');
+    }
   </script>
   <script src="script.js"></script>
 </body>

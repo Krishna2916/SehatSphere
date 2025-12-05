@@ -276,6 +276,30 @@ textarea {
   transform: translateY(0);
 }
 
+.btn-secondary {
+  background: #fff;
+  color: var(--primary-blue);
+  border: 2px solid var(--primary-blue);
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 16px;
+  cursor: pointer;
+  width: 100%;
+  transition: var(--transition-smooth);
+}
+
+.btn-secondary:hover {
+  background: var(--primary-blue);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3);
+}
+
+.btn-secondary:active {
+  transform: translateY(0);
+}
+
 .nav-btn {
   display: flex;
   align-items: center;
