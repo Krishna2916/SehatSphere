@@ -9,6 +9,42 @@ const API_BASE_URL = window.API_BASE_URL || 'http://localhost:3001/api';
 // Try backend by default; frontend falls back to localStorage if backend fails
 let useBackend = true;
 
+// ===== DEBUG PANEL =====
+let debugLogs = [];
+function addDebugLog(msg) {
+  const timestamp = new Date().toLocaleTimeString();
+  const fullMsg = `[${timestamp}] ${msg}`;
+  debugLogs.push(fullMsg);
+  const debugLog = $('debugLog');
+  if (debugLog) {
+    debugLog.innerHTML += fullMsg + '<br>';
+    debugLog.scrollTop = debugLog.scrollHeight;
+  }
+  console.log(fullMsg);
+}
+
+function toggleDebugPanel() {
+  const panel = $('debugPanel');
+  if (panel) {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function clearDebugLog() {
+  debugLogs = [];
+  const debugLog = $('debugLog');
+  if (debugLog) {
+    debugLog.innerHTML = '';
+  }
+}
+
+// Override console.log to show in debug panel
+const originalLog = console.log;
+console.log = function(...args) {
+  addDebugLog(args.join(' '));
+  originalLog.apply(console, args);
+};
+
 // Upload a single file to backend S3 endpoint. Returns file metadata or null on failure.
 async function uploadFileToServer(file, type = 'document') {
   if (!file) return null;
