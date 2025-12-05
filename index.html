@@ -133,16 +133,16 @@
   <!-- Optional config.js module (copy config.template.js -> config.js in deployment)
        We import it as a module and assign to window.API_BASE_URL so static hosting works.
   -->
-  <script>
-    // TODO: update after backend deploy
-    // Ensure a default API_BASE_URL is present for the frontend to use
-    window.API_BASE_URL = window.API_BASE_URL || 'http://localhost:3001/api';
-  </script>
   <script type="module">
-    // Attempt to import the module-style config.js. If present, set window.API_BASE_URL.
-    import('./config.js')
-      .then(mod => { window.API_BASE_URL = window.API_BASE_URL || mod.default; })
-      .catch(() => { console.info('No module config.js loaded (optional)'); });
+    // Import config.js and set API_BASE_URL, fallback to localhost if config fails
+    try {
+      const mod = await import('./config.js');
+      window.API_BASE_URL = mod.default;
+      console.log('✅ Config loaded:', window.API_BASE_URL);
+    } catch (e) {
+      window.API_BASE_URL = 'http://localhost:3001/api';
+      console.info('⚠️ No config.js found, using localhost fallback');
+    }
   </script>
   <script src="script.js"></script>
 </body>
