@@ -344,6 +344,15 @@ function renderAskAIView() {
       <p id="responseText"></p>
     </div>
 
+    <div style="margin-top: 20px; padding: 12px; background: #f5f5f5; border-radius: 6px; border: 1px solid #ddd;">
+      <p style="margin: 0; font-size: 12px; color: #666;">
+        <strong>🔗 API Endpoint:</strong> <code style="background: #fff; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 11px;">https://sehatsphere.onrender.com/api/ai/analyzeSymptoms</code>
+      </p>
+      <p style="margin: 8px 0 0 0; font-size: 12px; color: #666;">
+        <a href="https://krishna2916.github.io/SehatSphere/test-ai.html" target="_blank" style="color: var(--primary-blue); text-decoration: none;">📊 Test AI Endpoint</a>
+      </p>
+    </div>
+
     <h4 style="margin-top: 24px;">Your Query History</h4>
     <div id="queryHistory"></div>
   `;
