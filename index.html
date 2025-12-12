@@ -48,6 +48,11 @@
       </div>
 
       <div class="form-group">
+        <label for="phoneLoginInput">Phone Number (for phone OTP login)</label>
+        <input id="phoneLoginInput" type="tel" placeholder="+91 98765 43210" />
+      </div>
+
+      <div class="form-group">
         <label for="roleSelect">I am a:</label>
         <select id="roleSelect">
           <option value="patient">Patient</option>
@@ -64,12 +69,47 @@
       </div>
 
       <button id="loginBtn" class="btn-primary">Sign In</button>
+      <button id="phoneLoginBtn" class="btn-secondary" style="margin-top: 10px;">Sign In with Phone OTP</button>
       <button id="signupBtn" class="btn-secondary" style="margin-top: 12px;">Create Account</button>
       
       <p class="info-note" style="margin-top: 16px;">
         🔐 Secure authentication powered by Firebase<br>
         📱 New user? Click "Create Account"<br>
         🔑 Existing user? Click "Sign In"
+      </p>
+    </section>
+
+    <!-- OTP VERIFICATION SECTION -->
+    <section id="otpSection" class="card login-card hidden">
+      <h2>Verify Your Identity</h2>
+      <p class="subtitle-text">Enter the OTP sent to your email or phone</p>
+      
+      <div class="form-group">
+        <label>OTP Delivery Method</label>
+        <div style="display: flex; gap: 10px;">
+          <button id="otpEmailBtn" class="btn-otp-method active">📧 Email</button>
+          <button id="otpSmsBtn" class="btn-otp-method">📱 SMS</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="phoneInput">Phone Number (for SMS)</label>
+        <input id="phoneInput" type="tel" placeholder="+91 XXXXX XXXXX" style="display: none;" />
+      </div>
+
+      <div class="form-group">
+        <label for="otpInput">Enter 6-Digit OTP</label>
+        <input id="otpInput" type="text" placeholder="000000" maxlength="6" style="font-size: 24px; letter-spacing: 10px; text-align: center;" />
+      </div>
+
+      <p id="otpStatus" class="info-note" style="margin-top: 4px; color: #1e88e5;"></p>
+
+      <button id="verifyOtpBtn" class="btn-primary">Verify OTP</button>
+      <button id="resendOtpBtn" class="btn-secondary" style="margin-top: 12px;">Resend OTP</button>
+      <button id="backToLoginBtn" class="btn-secondary" style="margin-top: 12px; background: #f5f5f5; color: #666; border-color: #ddd;">← Back to Login</button>
+      
+      <p class="info-note" style="margin-top: 16px;">
+        ⏱️ OTP expires in <span id="otpTimer">300</span> seconds
       </p>
     </section>
 
@@ -143,25 +183,13 @@
     <p>© 2025 SehatSphere — Making Health Simple </p>
   </footer>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-  
-  <!-- Firebase Config -->
-  <script src="firebase-config.js"></script>
-  
-  <!-- Backend Config -->
+  <!-- Backend Config (Firebase disabled for now; using simple login) -->
   <script>
     // Load config and set window.API_BASE_URL synchronously before script.js loads
     window.API_BASE_URL = 'https://sehatsphere.onrender.com/api';
     console.log('✅ Backend configured:', window.API_BASE_URL);
-    
-    // Initialize Firebase
-    if (typeof firebaseConfig !== 'undefined') {
-      firebase.initializeApp(firebaseConfig);
-      window.auth = firebase.auth();
-      console.log('✅ Firebase initialized');
-    }
+    // Firebase intentionally disabled on main site for testing; fallback auth will be used.
+    window.auth = null;
   </script>
   <script src="script.js"></script>
 </body>
