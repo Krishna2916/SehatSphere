@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simple Test</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    input, button { padding: 10px; margin: 5px; font-size: 16px; }
+    #result { margin-top: 20px; white-space: pre-wrap; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>SehatSphere Registration Test</h1>
+  
+  <input type="email" id="email" placeholder="Email" value="">
+  <input type="text" id="name" placeholder="Name" value="">
+  <input type="text" id="pin" placeholder="PIN (4 digits)" value="" maxlength="6">
+  <button onclick="register()">Register</button>
+  <button onclick="testLogin()">Test Login</button>
+  
+  <div id="result"></div>
+  
+  <script>
+    async function register() {
+      const email = document.getElementById('email').value;
+      const name = document.getElementById('name').value;
+      const pin = document.getElementById('pin').value;
+      const result = document.getElementById('result');
+      
+      result.innerHTML = 'Registering...';
+      
+      try {
+        console.log('Making request to: http://localhost:3001/api/auth/register');
+        console.log('Data:', { email, name, pin, role: 'patient' });
+        
+        const res = await fetch('http://localhost:3001/api/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email: email,
+            name: name,
+            pin: pin,
+            role: 'patient'
+          })
+        });
+        
+        console.log('Response status:', res.status);
+        console.log('Response headers:', [...res.headers.entries()]);
+        
+        const contentType = res.headers.get('content-type');
+        console.log('Content-Type:', contentType);
+        
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await res.text();
+          result.innerHTML = `<div class="error">ERROR: Got HTML instead of JSON!\n\nResponse:\n${text.substring(0, 500)}</div>`;
+          console.error('Non-JSON response:', text);
+          return;
+        }
+        
+        const data = await res.json();
+        console.log('Response data:', data);
+        
+        if (data.success) {
+          result.innerHTML = `<div class="success">✅ SUCCESS!\n\nUser: ${data.user.name}\nEmail: ${data.user.email}\nHealth ID: ${data.user.healthId}\n\nToken: ${data.token.substring(0, 50)}...</div>`;
+        } else {
+          result.innerHTML = `<div class="error">❌ FAILED: ${data.error}</div>`;
+        }
+      } catch (error) {
+        result.innerHTML = `<div class="error">❌ ERROR: ${error.message}\n\nName: ${error.name}\n\nStack: ${error.stack}</div>`;
+        console.error('Error:', error);
+      }
+    }
+  </script>
+</body>
+</html>

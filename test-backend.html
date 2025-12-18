@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Backend Connection Test</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .success { color: green; }
+    .error { color: red; }
+    button { padding: 10px 20px; font-size: 16px; margin: 10px 0; }
+    #result { margin-top: 20px; padding: 15px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  <h1>SehatSphere Backend Connection Test</h1>
+  
+  <button onclick="testHealth()">Test Health Endpoint</button>
+  <button onclick="testRegister()">Test Registration</button>
+  
+  <div id="result"></div>
+  
+  <script>
+    const API_BASE = 'http://localhost:3001/api';
+    
+    async function testHealth() {
+      const result = document.getElementById('result');
+      result.innerHTML = 'Testing health endpoint...';
+      
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        result.innerHTML = `<div class="success">✅ SUCCESS!<br><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+      } catch (error) {
+        result.innerHTML = `<div class="error">❌ ERROR: ${error.message}<br>Name: ${error.name}</div>`;
+      }
+    }
+    
+    async function testRegister() {
+      const result = document.getElementById('result');
+      result.innerHTML = 'Testing registration...';
+      
+      const testData = {
+        email: 'test' + Date.now() + '@example.com',
+        name: 'Test User',
+        pin: '1234',
+        role: 'patient'
+      };
+      
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(testData)
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          result.innerHTML = `<div class="success">✅ REGISTRATION SUCCESS!<br><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+        } else {
+          result.innerHTML = `<div class="error">❌ Registration failed: ${data.error}</div>`;
+        }
+      } catch (error) {
+        result.innerHTML = `<div class="error">❌ CONNECTION ERROR: ${error.message}<br>Name: ${error.name}<br>Stack: ${error.stack}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>

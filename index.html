@@ -30,7 +30,7 @@
     <!-- LOGIN SECTION -->
     <section id="loginSection" class="card login-card">
       <h2>Welcome to SehatSphere</h2>
-      <p class="subtitle-text">Sign in or create a new account</p>
+      <p class="subtitle-text">Sign in or create a new account with Secure PIN</p>
       
       <div class="form-group">
         <label for="emailInput">Email Address</label>
@@ -38,21 +38,24 @@
       </div>
 
       <div class="form-group">
-        <label for="passwordInput">Password</label>
-        <input id="passwordInput" type="password" placeholder="Enter password (min 6 characters)" />
+        <label for="phoneInput">Phone Number (Optional)</label>
+        <input id="phoneInput" type="tel" placeholder="+91 98765 43210" />
       </div>
 
       <div class="form-group">
+        <label for="pinInput">Secure PIN (4 or 6 digits)</label>
+        <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Enter 4 or 6 digit PIN" />
+        <small style="color: #666; font-size: 12px; margin-top: 4px; display: block;">
+          📌 Use a memorable PIN you can easily recall
+        </small>
+      </div>
+
+      <div class="form-group" id="nameGroup" style="display: none;">
         <label for="nameInput">Your Full Name</label>
         <input id="nameInput" type="text" placeholder="e.g., Ravi Kumar" />
       </div>
 
-      <div class="form-group">
-        <label for="phoneLoginInput">Phone Number (for phone OTP login)</label>
-        <input id="phoneLoginInput" type="tel" placeholder="+91 98765 43210" />
-      </div>
-
-      <div class="form-group">
+      <div class="form-group" id="roleGroup" style="display: none;">
         <label for="roleSelect">I am a:</label>
         <select id="roleSelect">
           <option value="patient">Patient</option>
@@ -68,48 +71,15 @@
         <label for="rememberMe" style="margin: 0; cursor: pointer;">Remember me</label>
       </div>
 
-      <button id="loginBtn" class="btn-primary">Sign In</button>
-      <button id="phoneLoginBtn" class="btn-secondary" style="margin-top: 10px;">Sign In with Phone OTP</button>
-      <button id="signupBtn" class="btn-secondary" style="margin-top: 12px;">Create Account</button>
+      <button id="loginBtn" class="btn-primary">Sign In with PIN</button>
+      <button id="signupBtn" class="btn-secondary" style="margin-top: 12px;">Create New Account</button>
       
       <p class="info-note" style="margin-top: 16px;">
-        🔐 Secure authentication (local for now)<br>
-        📱 New user? Click "Create Account"<br>
-        🔑 Existing user? Click "Sign In"
-      </p>
-    </section>
-
-    <!-- OTP VERIFICATION SECTION -->
-    <section id="otpSection" class="card login-card hidden">
-      <h2>Verify Your Identity</h2>
-      <p class="subtitle-text">Enter the OTP sent to your email or phone</p>
-      
-      <div class="form-group">
-        <label>OTP Delivery Method</label>
-        <div style="display: flex; gap: 10px;">
-          <button id="otpEmailBtn" class="btn-otp-method active">📧 Email</button>
-          <button id="otpSmsBtn" class="btn-otp-method">📱 SMS</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="phoneInput">Phone Number (for SMS)</label>
-        <input id="phoneInput" type="tel" placeholder="+91 XXXXX XXXXX" style="display: none;" />
-      </div>
-
-      <div class="form-group">
-        <label for="otpInput">Enter 6-Digit OTP</label>
-        <input id="otpInput" type="text" placeholder="000000" maxlength="6" style="font-size: 24px; letter-spacing: 10px; text-align: center;" />
-      </div>
-
-      <p id="otpStatus" class="info-note" style="margin-top: 4px; color: #1e88e5;"></p>
-
-      <button id="verifyOtpBtn" class="btn-primary">Verify OTP</button>
-      <button id="resendOtpBtn" class="btn-secondary" style="margin-top: 12px;">Resend OTP</button>
-      <button id="backToLoginBtn" class="btn-secondary" style="margin-top: 12px; background: #f5f5f5; color: #666; border-color: #ddd;">← Back to Login</button>
-      
-      <p class="info-note" style="margin-top: 16px;">
-        ⏱️ OTP expires in <span id="otpTimer">300</span> seconds
+        🔐 Secure PIN-based authentication<br>
+        📱 Use Email or Phone + PIN<br>
+        🆕 New user? Click "Create New Account"<br>
+        🔑 Existing user? Click "Sign In with PIN"<br>
+        <span style="font-size: 11px; opacity: 0.8;">🚀 OTP login coming at launch</span>
       </p>
     </section>
 
@@ -131,17 +101,17 @@
 
         <!-- Main Dashboard Buttons (Elder-Friendly) -->
         <div class="dashboard-buttons">
-          <button class="dashboard-btn big-btn" onclick="showView('askAI')">
+          <a class="dashboard-btn big-btn" href="https://krishna2916.github.io/SehatSphere/test-ai.html" style="text-decoration:none;" rel="noopener" onclick="showMessage('Opening AI assistant...', 'info')">
             <span class="btn-icon">🤖</span>
             <span class="btn-text">Ask AI About My Health</span>
             <span class="btn-hint">Explain symptoms in simple language</span>
-          </button>
+          </a>
 
-          <button class="dashboard-btn big-btn" onclick="showView('myReports')">
+          <a class="dashboard-btn big-btn" href="#myReports" style="text-decoration:none;" onclick="showMessage('Opening your prescriptions...', 'info'); showView('myReports');">
             <span class="btn-icon">📋</span>
             <span class="btn-text">My Reports & Prescriptions</span>
             <span class="btn-hint">View all medical documents</span>
-          </button>
+          </a>
 
           <button class="dashboard-btn big-btn" onclick="showView('healthId')">
             <span class="btn-icon">🆔</span>
@@ -186,11 +156,12 @@
   <!-- Backend Config (Firebase disabled for now; using simple login) -->
   <script>
     // Load config and set window.API_BASE_URL synchronously before script.js loads
-    window.API_BASE_URL = 'https://sehatsphere.onrender.com/api';
+    // Use local backend for testing; adjust when pointing to deployed API
+    window.API_BASE_URL = 'http://localhost:3001/api';
     console.log('✅ Backend configured:', window.API_BASE_URL);
     // Firebase intentionally disabled on main site for testing; fallback auth will be used.
     window.auth = null;
   </script>
-  <script src="script.js"></script>
+  <script src="script.js?v=10"></script>
 </body>
 </html>

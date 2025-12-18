@@ -1,6 +1,8 @@
 // SehatSphere MVP - Healthcare App with AI Assistance
 // Updated: 2025 - Elder-Friendly Interface
 
+console.log('🚀 SehatSphere App Loading...');
+
 const $ = id => document.getElementById(id);
 let session = { role: null, name: null, patientId: null };
 
@@ -8,6 +10,8 @@ let session = { role: null, name: null, patientId: null };
 const API_BASE_URL = window.API_BASE_URL || 'http://localhost:3001/api';
 // Try backend by default; frontend falls back to localStorage if backend fails
 let useBackend = true;
+
+console.log('📡 API Base URL:', API_BASE_URL);
 
 // Upload a single file to backend S3 endpoint. Returns file metadata or null on failure.
 async function uploadFileToServer(file, type = 'document') {
@@ -103,7 +107,15 @@ window.onload = () => {
 async function checkBackendHealth() {
   try {
     console.log('🔍 Checking backend health at:', `${API_BASE_URL}/health`);
-    const res = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    const res = await fetch(`${API_BASE_URL}/health`, { 
+      method: 'GET',
+      signal: controller.signal 
+    });
+    clearTimeout(timeoutId);
+    
     console.log('Health check response status:', res.status);
     if (res.ok) {
       const j = await res.json();
@@ -126,11 +138,12 @@ async function checkBackendHealth() {
       }
     }
   } catch (e) {
-    console.warn('Backend unreachable, using local fallback', e.message);
+    console.error('❌ Backend unreachable:', e.name, e.message);
+    console.error('Full error:', e);
     useBackend = false;
     const statusEl = document.getElementById('backendStatus');
     if (statusEl) {
-      statusEl.innerText = 'Backend: Offline';
+      statusEl.innerText = `Backend: Offline (${e.name})`;
       statusEl.style.background = 'linear-gradient(90deg,#c62828,#ef5350)';
       statusEl.style.color = '#fff';
     }
@@ -139,16 +152,15 @@ async function checkBackendHealth() {
 
 // ===== REMEMBER ME & AUTO-LOGIN =====
 
-function saveCredentials(email, password, name, role) {
+function saveCredentials(identifier, pin, name, role) {
   if ($('rememberMe').checked) {
-    localStorage.setItem('savedEmail', email);
-    localStorage.setItem('savedPassword', btoa(password)); // Basic encoding (not secure for production)
+    localStorage.setItem('savedIdentifier', identifier);
     localStorage.setItem('savedName', name);
     localStorage.setItem('savedRole', role);
     localStorage.setItem('rememberMe', 'true');
+    // Note: Never save PIN in localStorage for security
   } else {
-    localStorage.removeItem('savedEmail');
-    localStorage.removeItem('savedPassword');
+    localStorage.removeItem('savedIdentifier');
     localStorage.removeItem('savedName');
     localStorage.removeItem('savedRole');
     localStorage.removeItem('rememberMe');
@@ -158,13 +170,18 @@ function saveCredentials(email, password, name, role) {
 function loadSavedCredentials() {
   const rememberMe = localStorage.getItem('rememberMe');
   if (rememberMe === 'true') {
-    const email = localStorage.getItem('savedEmail');
-    const password = localStorage.getItem('savedPassword');
+    const identifier = localStorage.getItem('savedIdentifier');
     const name = localStorage.getItem('savedName');
     const role = localStorage.getItem('savedRole');
     
-    if (email) $('emailInput').value = email;
-    if (password) $('passwordInput').value = atob(password); // Decode
+    if (identifier) {
+      // Determine if it's email or phone
+      if (identifier.includes('@')) {
+        $('emailInput').value = identifier;
+      } else {
+        $('phoneInput').value = identifier;
+      }
+    }
     if (name) $('nameInput').value = name;
     if (role) $('roleSelect').value = role;
     $('rememberMe').checked = true;
@@ -172,24 +189,102 @@ function loadSavedCredentials() {
 }
 
 function checkAutoLogin() {
-  // Auto-login if Firebase session exists
-  if (window.auth) {
-    window.auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        console.log('✅ Firebase session detected, auto-logging in:', user.uid);
-        
-        const name = user.displayName || localStorage.getItem('savedName') || 'User';
-        const role = localStorage.getItem('savedRole') || 'patient';
-        const pid = localStorage.getItem(`firebase_uid_${user.uid}`) || genHealthId(name);
-        
-        session = { role, name, patientId: pid, firebaseUid: user.uid, email: user.email };
-        setTimeout(afterLogin, 120);
-      }
-    });
+  // Check if JWT token exists and is valid
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    verifyTokenAndLogin(token);
   }
 }
 
-// ===== LOGIN FLOW (Firebase or Simple) =====
+async function verifyTokenAndLogin(token) {
+  try {
+    console.log('🔑 Verifying token for auto-login...');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    
+    const res = await fetch(`${API_BASE_URL}/auth/verify`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        console.log('✅ Auto-login successful:', data.user);
+        session = {
+          role: data.user.role,
+          name: data.user.name,
+          patientId: data.user.healthId,
+          email: data.user.email,
+          phone: data.user.phone,
+          userId: data.user.id
+        };
+        setTimeout(afterLogin, 120);
+      }
+    } else {
+      // Token expired or invalid
+      console.log('⚠️ Token invalid or expired, clearing...');
+      localStorage.removeItem('authToken');
+    }
+  } catch (error) {
+    console.error('Auto-login failed:', error.name, error.message);
+    localStorage.removeItem('authToken');
+  }
+}
+
+// ===== PIN-BASED AUTHENTICATION =====
+
+function validatePinFormat(pin) {
+  return /^\d{4}$|^\d{6}$/.test(pin);
+}
+
+function showMessage(message, type = 'info') {
+  const msgDiv = document.createElement('div');
+  msgDiv.textContent = message;
+  msgDiv.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 16px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 10000;
+    animation: slideIn 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  `;
+  
+  if (type === 'success') {
+    msgDiv.style.background = 'linear-gradient(135deg, #2e7d32, #66bb6a)';
+    msgDiv.style.color = '#fff';
+  } else if (type === 'error') {
+    msgDiv.style.background = 'linear-gradient(135deg, #c62828, #ef5350)';
+    msgDiv.style.color = '#fff';
+  } else {
+    msgDiv.style.background = 'linear-gradient(135deg, #1976d2, #42a5f5)';
+    msgDiv.style.color = '#fff';
+  }
+  
+  document.body.appendChild(msgDiv);
+  
+  setTimeout(() => {
+    msgDiv.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => msgDiv.remove(), 300);
+  }, 3000);
+}
+
+function toggleSignupFields(show) {
+  const nameGroup = $('nameGroup');
+  const roleGroup = $('roleGroup');
+  if (nameGroup) nameGroup.style.display = show ? 'block' : 'none';
+  if (roleGroup) roleGroup.style.display = show ? 'block' : 'none';
+}
+
+// ===== LOGIN FLOW (PIN-based) =====
 
 function initializeLoginListeners() {
   const loginBtn = document.getElementById('loginBtn');
@@ -202,148 +297,248 @@ function initializeLoginListeners() {
   
   console.log('✅ Login listeners initialized');
   
-  // Sign In with Firebase (if available) or Simple Login
+  // Sign In with PIN
   loginBtn.addEventListener('click', async () => {
     console.log('🔘 Login button clicked');
     const email = $('emailInput').value.trim();
-    const password = $('passwordInput').value.trim();
+    const phone = $('phoneInput').value.trim();
+    const pin = $('pinInput').value.trim();
+
+    // Validation
+    const identifier = email || phone;
+    
+    if (!identifier) {
+      showMessage('Please enter your email or phone number', 'error');
+      return;
+    }
+
+    if (!pin) {
+      showMessage('Please enter your Secure PIN', 'error');
+      $('pinInput').focus();
+      return;
+    }
+
+    if (!validatePinFormat(pin)) {
+      showMessage('PIN must be 4 or 6 digits', 'error');
+      $('pinInput').focus();
+      return;
+    }
+
+    // Disable button during request
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Signing in...';
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ identifier, pin }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('❌ Non-JSON response from login:', text.substring(0, 200));
+        throw new Error('Server error. Please check backend logs.');
+      }
+
+      const data = await res.json();
+
+      if (data.success) {
+        console.log('✅ Login successful:', data.user);
+        
+        // Store JWT token
+        localStorage.setItem('authToken', data.token);
+        
+        // Set session
+        session = {
+          role: data.user.role,
+          name: data.user.name,
+          patientId: data.user.healthId,
+          email: data.user.email,
+          phone: data.user.phone,
+          userId: data.user.id
+        };
+        
+        // Save credentials if Remember Me is checked
+        saveCredentials(identifier, pin, data.user.name, data.user.role);
+        
+        showMessage('Login successful! Welcome back.', 'success');
+        
+        setTimeout(afterLogin, 500);
+      } else {
+        showMessage(data.error || 'Login failed', 'error');
+        
+        if (data.remainingAttempts !== undefined) {
+          showMessage(`${data.remainingAttempts} attempt(s) remaining`, 'info');
+        }
+        
+        if (data.lockedUntil) {
+          const lockTime = Math.ceil((new Date(data.lockedUntil) - Date.now()) / 60000);
+          showMessage(`Account locked for ${lockTime} minute(s)`, 'error');
+        }
+      }
+    } catch (error) {
+      console.error('❌ Login error:', error.name, error.message);
+      console.error('Full error details:', error);
+      
+      let errorMsg = 'Connection error. ';
+      if (error.name === 'AbortError') {
+        errorMsg += 'Request timed out. Backend may be slow or offline.';
+      } else if (error.message.includes('fetch')) {
+        errorMsg += 'Cannot reach backend server.';
+      } else {
+        errorMsg += error.message;
+      }
+      
+      showMessage(errorMsg, 'error');
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign In with PIN';
+    }
+});
+
+  // Sign Up / Create Account
+  signupBtn.addEventListener('click', async () => {
+    console.log('🔘 Signup button clicked');
+    
+    // Check if we're already in signup mode
+    const isSignupMode = $('nameGroup').style.display !== 'none';
+    
+    if (!isSignupMode) {
+      // Switch to signup mode - show name and role fields
+      toggleSignupFields(true);
+      signupBtn.textContent = 'Complete Registration';
+      loginBtn.textContent = 'Back to Sign In';
+      
+      // Change login button to toggle back
+      loginBtn.onclick = () => {
+        toggleSignupFields(false);
+        signupBtn.textContent = 'Create New Account';
+        loginBtn.textContent = 'Sign In with PIN';
+        loginBtn.onclick = null;
+        initializeLoginListeners(); // Re-attach original handlers
+      };
+      return;
+    }
+    
+    // Proceed with registration
+    const email = $('emailInput').value.trim();
+    const phone = $('phoneInput').value.trim();
+    const pin = $('pinInput').value.trim();
     const name = $('nameInput').value.trim();
     const role = $('roleSelect').value;
 
     // Validation
-    if (!name) {
-      alert('Please enter your name to continue');
+    if (!email && !phone) {
+      showMessage('Please enter either email or phone number', 'error');
+      return;
+    }
+
+    if (!name || name.length < 2) {
+      showMessage('Please enter your full name', 'error');
       $('nameInput').focus();
       return;
     }
 
-    // Check if Firebase is available
-    if (window.auth && email && password) {
+    if (!pin) {
+      showMessage('Please create a Secure PIN', 'error');
+      $('pinInput').focus();
+      return;
+    }
+
+    if (!validatePinFormat(pin)) {
+      showMessage('PIN must be 4 or 6 digits', 'error');
+      $('pinInput').focus();
+      return;
+    }
+
+    // Disable button during request
+    signupBtn.disabled = true;
+    signupBtn.textContent = 'Creating account...';
+
     try {
-      // Firebase Authentication
-      const userCredential = await window.auth.signInWithEmailAndPassword(email, password);
-      const user = userCredential.user;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
-      console.log('✅ Firebase sign in successful:', user.uid);
-      
-      let pid = localStorage.getItem(`firebase_uid_${user.uid}`) || genHealthId(name);
-      
-      const patients = loadAll('patients');
-      if (!patients.find(p => p.patientId === pid)) {
-        patients.push({
-          patientId: pid,
-          name: name,
-          role: role,
-          firebaseUid: user.uid,
-          email: user.email,
-          created: new Date().toLocaleString()
-        });
-        saveAll('patients', patients);
-        localStorage.setItem(`firebase_uid_${user.uid}`, pid);
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email || undefined,
+          phone: phone || undefined,
+          name,
+          pin,
+          role
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('❌ Non-JSON response from registration:', text.substring(0, 200));
+        throw new Error('Server error. Please check backend logs.');
       }
 
-      session = { role, name, patientId: pid, firebaseUid: user.uid, email: user.email };
-      
-      // Save credentials if Remember Me is checked
-      saveCredentials(email, password, name, role);
-      
-      setTimeout(afterLogin, 120);
-      
+      const data = await res.json();
+
+      if (data.success) {
+        console.log('✅ Registration successful:', data.user);
+        
+        // Store JWT token
+        localStorage.setItem('authToken', data.token);
+        
+        // Set session
+        session = {
+          role: data.user.role,
+          name: data.user.name,
+          patientId: data.user.healthId,
+          email: data.user.email,
+          phone: data.user.phone,
+          userId: data.user.id
+        };
+        
+        // Save credentials if Remember Me is checked
+        saveCredentials(email || phone, pin, name, role);
+        
+        showMessage('Account created successfully! Welcome to SehatSphere.', 'success');
+        
+        setTimeout(afterLogin, 500);
+      } else {
+        showMessage(data.error || 'Registration failed', 'error');
+      }
     } catch (error) {
-      console.error('Firebase sign in error:', error);
-      alert(`Sign in failed: ${error.message}`);
+      console.error('❌ Registration error:', error.name, error.message);
+      console.error('Full error details:', error);
+      
+      let errorMsg = 'Connection error. ';
+      if (error.name === 'AbortError') {
+        errorMsg += 'Request timed out. Backend may be slow or offline.';
+      } else if (error.message.includes('fetch')) {
+        errorMsg += 'Cannot reach backend server.';
+      } else {
+        errorMsg += error.message;
+      }
+      
+      showMessage(errorMsg, 'error');
+    } finally {
+      signupBtn.disabled = false;
+      signupBtn.textContent = 'Complete Registration';
     }
-  } else {
-    // Simple login without Firebase
-    console.log('⚠️ Firebase not configured, using simple login');
-    
-    let pid = genHealthId(name);
-    
-    const patients = loadAll('patients');
-    if (!patients.find(p => p.patientId === pid)) {
-      patients.push({
-        patientId: pid,
-        name: name,
-        role: role,
-        email: email || null,
-        created: new Date().toLocaleString()
-      });
-      saveAll('patients', patients);
-    }
-
-    session = { role, name, patientId: pid, email: email || null };
-    
-    // Save credentials if Remember Me is checked
-    saveCredentials(email, password, name, role);
-    
-    setTimeout(afterLogin, 120);
-  }
-});
-
-  // Sign Up with Firebase (if available)
-  signupBtn.addEventListener('click', async () => {
-    console.log('🔘 Signup button clicked');
-    const email = $('emailInput').value.trim();
-    const password = $('passwordInput').value.trim();
-    const name = $('nameInput').value.trim();
-    const role = $('roleSelect').value;
-
-    // Validation
-    if (!name) {
-      alert('❌ Please enter your name');
-      return;
-    }
-
-    if (!window.auth) {
-      alert('⚠️ Firebase not configured. Please use "Sign In" button for simple login.');
-      return;
-    }
-
-    if (!email || !password) {
-      alert('❌ Please enter email and password for Firebase signup');
-      return;
-    }
-
-    if (password.length < 6) {
-      alert('❌ Password must be at least 6 characters');
-      return;
-    }
-
-  try {
-    const userCredential = await window.auth.createUserWithEmailAndPassword(email, password);
-    const user = userCredential.user;
-    
-    console.log('✅ Firebase account created:', user.uid);
-    
-    await user.updateProfile({ displayName: name });
-    
-    const pid = genHealthId(name);
-    localStorage.setItem(`firebase_uid_${user.uid}`, pid);
-    
-    const patients = loadAll('patients');
-    patients.push({
-      patientId: pid,
-      name: name,
-      role: role,
-      firebaseUid: user.uid,
-      email: user.email,
-      created: new Date().toLocaleString()
-    });
-    saveAll('patients', patients);
-
-    session = { role, name, patientId: pid, firebaseUid: user.uid, email: user.email };
-    
-    // Save credentials if Remember Me is checked
-    saveCredentials(email, password, name, role);
-    
-    alert(`✅ Account created! Your Health ID: ${pid}`);
-    setTimeout(afterLogin, 120);
-    
-  } catch (error) {
-    console.error('Firebase sign up error:', error);
-    alert(`Sign up failed: ${error.message}`);
-  }
-});
+  });
 }
 
 function afterLogin() {
@@ -371,14 +566,15 @@ function afterLogin() {
 // Logout
 document.addEventListener('click', async (e) => {
   if (e.target && e.target.id === 'logoutBtn') {
-    try {
-      if (window.auth) {
-        await window.auth.signOut();
-        console.log('✅ Firebase sign out successful');
-      }
-    } catch (error) {
-      console.error('Firebase sign out error:', error);
-    }
+    // Clear JWT token
+    localStorage.removeItem('authToken');
+    
+    // Clear session
+    session = { role: null, name: null, patientId: null };
+    
+    console.log('✅ Logout successful');
+    
+    // Reload page to show login screen
     location.reload();
   }
 });
@@ -494,6 +690,12 @@ function showView(view) {
     if (renderers[view]) {
       renderers[view]();
     }
+
+    // Scroll into view so the user sees the selected section immediately
+    const viewsSection = document.getElementById('views');
+    if (viewsSection) {
+      viewsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   } catch (e) {
     console.error('Renderer error for', view, e);
   }
@@ -504,35 +706,89 @@ function showView(view) {
 // Ask AI About Health
 function renderAskAIView() {
   const el = $('view-askAI');
+  const target = 'https://krishna2916.github.io/SehatSphere/test-ai.html';
+  console.log('Redirecting to AI assistant at', target);
   el.innerHTML = `
     <h3>🤖 Ask AI About My Health</h3>
-    <p class="subtitle-text">Get instant health guidance from our AI assistant. Describe your symptoms and receive personalized advice.</p>
-    
-    <div style="margin: 20px 0; padding: 20px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid var(--primary-blue);">
-      <p style="margin: 0 0 12px 0;"><strong>Our AI can help with:</strong></p>
-      <ul style="margin: 0; padding-left: 20px;">
-        <li>Symptom analysis (headache, fever, cough, etc.)</li>
-        <li>Quick health guidance</li>
-        <li>When to see a doctor</li>
-        <li>General wellness tips</li>
-      </ul>
-    </div>
-
-    <button class="btn-primary" onclick="window.location.href='https://krishna2916.github.io/SehatSphere/test-ai.html'" style="margin-top: 16px;">🤖 Open AI Chatbot</button>
-
-    <h4 style="margin-top: 32px;">Your Query History</h4>
-    <div id="queryHistory"></div>
+    <p class="subtitle-text">Opening AI assistant… If nothing happens, use the button below.</p>
+    <button class="btn-primary" style="margin-top: 12px;" onclick="window.location.href='${target}'">Open AI Assistant</button>
   `;
+  // Trigger redirect; keep content above as fallback if blocked
+  setTimeout(() => {
+    window.location.href = target;
+  }, 100);
+  return;
+}
 
-  // Load and display query history
-  const queries = queryForPatient('aiQueries', session.patientId);
-  if (queries.length > 0) {
+// Call local backend AI endpoint and render response
+async function runLocalAiQuery() {
+  const textarea = $('aiSymptom');
+  const resultEl = $('aiResult');
+  const askBtn = $('askAiBtn');
+
+  const symptom = (textarea?.value || '').trim();
+  if (!symptom) {
+    showMessage('Please describe your symptom first.', 'error');
+    return;
+  }
+
+  if (!useBackend) {
+    showMessage('Backend unavailable. Please try again shortly.', 'error');
+    return;
+  }
+
+  askBtn.disabled = true;
+  askBtn.textContent = 'Asking AI...';
+  resultEl.style.display = 'block';
+  resultEl.innerHTML = '<div class="muted">Thinking...</div>';
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const res = await fetch(`${API_BASE_URL}/ai/analyzeSymptoms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symptom, patientId: session.patientId || 'guest' }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text();
+      throw new Error(`Unexpected response: ${text.substring(0, 200)}`);
+    }
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      const msg = data.error || data.message || `Error ${res.status}`;
+      throw new Error(msg);
+    }
+
+    const responseText = data.data?.response || data.response || 'No advice available.';
+    resultEl.innerHTML = `
+      <div>
+        <strong>AI Response:</strong>
+        <p style="margin-top: 8px;">${responseText}</p>
+      </div>
+    `;
+
+    // Save to history
+    addForPatient('aiQueries', session.patientId, { symptom, response: responseText });
+    const queries = queryForPatient('aiQueries', session.patientId);
     $('queryHistory').innerHTML = queries
       .reverse()
       .map(q => `<div class="list-item"><strong>Q:</strong> ${q.symptom}<br/><strong>Response:</strong> ${q.response.substring(0, 100)}...<br/><span class="muted">${q._ts}</span></div>`)
       .join('');
-  } else {
-    $('queryHistory').innerHTML = '<div class="muted">No queries yet. Click the button above to get started!</div>';
+
+  } catch (error) {
+    console.error('AI query failed:', error);
+    resultEl.innerHTML = `<div class="muted">${error.message}</div>`;
+    showMessage('AI request failed. ' + error.message, 'error');
+  } finally {
+    askBtn.disabled = false;
+    askBtn.textContent = 'Ask AI';
   }
 }
 
@@ -704,12 +960,134 @@ function renderProfileView() {
   const el = $('view-profile');
   const patient = loadAll('patients').find(p => p.patientId === session.patientId);
   el.innerHTML = '<h3>👤 Profile & Contacts</h3>';
-  el.innerHTML += `<div class="list-item"><strong>Name:</strong> ${patient ? patient.name : session.name}</div>`;
-  el.innerHTML += `<div class="form-group"><label for="ecName">Emergency Contact Name:</label><input id="ecName" type="text" /></div>`;
-  el.innerHTML += `<div class="form-group"><label for="ecPhone">Phone Number:</label><input id="ecPhone" type="tel" /></div>`;
-  el.innerHTML += '<button class="btn-primary" onclick="saveEmergencyContact()">Save Contact</button>';
+  
+  // User Profile Information
+  el.innerHTML += `
+    <div class="card" style="margin-bottom: 20px;">
+      <h4>Your Profile</h4>
+      <div class="list-item"><strong>Name:</strong> ${patient ? patient.name : session.name}</div>
+      <div class="list-item"><strong>Email:</strong> ${session.email || 'Not provided'}</div>
+      <div class="list-item"><strong>Phone:</strong> ${session.phone || 'Not provided'}</div>
+      <div class="list-item"><strong>Health ID:</strong> ${session.patientId}</div>
+      <div class="list-item"><strong>Role:</strong> ${session.role}</div>
+    </div>
+  `;
+  
+  // Change PIN Section
+  el.innerHTML += `
+    <div class="card" style="margin-bottom: 20px; background: linear-gradient(135deg, #fff9e6, #fff);">
+      <h4>🔐 Change Your Secure PIN</h4>
+      <p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+        Update your PIN for enhanced security. Use 4 or 6 digits.
+      </p>
+      <div class="form-group">
+        <label for="oldPin">Current PIN</label>
+        <input id="oldPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Enter current PIN" />
+      </div>
+      <div class="form-group">
+        <label for="newPin">New PIN (4 or 6 digits)</label>
+        <input id="newPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Enter new PIN" />
+      </div>
+      <div class="form-group">
+        <label for="confirmPin">Confirm New PIN</label>
+        <input id="confirmPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Re-enter new PIN" />
+      </div>
+      <button class="btn-primary" onclick="changeUserPin()" style="background: linear-gradient(135deg, #1976d2, #42a5f5);">
+        🔑 Change PIN
+      </button>
+    </div>
+  `;
+  
+  // Emergency Contacts Section
+  el.innerHTML += `
+    <div class="card">
+      <h4>Emergency Contacts</h4>
+      <div class="form-group">
+        <label for="ecName">Contact Name</label>
+        <input id="ecName" type="text" placeholder="e.g., Dr. Sharma" />
+      </div>
+      <div class="form-group">
+        <label for="ecPhone">Phone Number</label>
+        <input id="ecPhone" type="tel" placeholder="+91 98765 43210" />
+      </div>
+      <button class="btn-primary" onclick="saveEmergencyContact()">Save Contact</button>
+    </div>
+  `;
+  
   const contacts = queryForPatient('contacts', session.patientId);
-  el.innerHTML += '<h4>Saved Contacts</h4>' + (contacts.length ? contacts.map(c => `<div class="list-item"><strong>${c.name}</strong> — ${c.phone}</div>`).join('') : '<div class="muted">No contacts saved</div>');
+  el.innerHTML += '<h4 style="margin-top: 20px;">Saved Contacts</h4>' + (contacts.length ? contacts.map(c => `<div class="list-item"><strong>${c.name}</strong> — ${c.phone}</div>`).join('') : '<div class="muted">No contacts saved</div>');
+}
+
+// Change PIN function
+async function changeUserPin() {
+  const oldPin = $('oldPin').value.trim();
+  const newPin = $('newPin').value.trim();
+  const confirmPin = $('confirmPin').value.trim();
+  
+  // Validation
+  if (!oldPin || !newPin || !confirmPin) {
+    showMessage('Please fill in all PIN fields', 'error');
+    return;
+  }
+  
+  if (!validatePinFormat(newPin)) {
+    showMessage('New PIN must be 4 or 6 digits', 'error');
+    return;
+  }
+  
+  if (newPin !== confirmPin) {
+    showMessage('New PIN and confirmation do not match', 'error');
+    return;
+  }
+  
+  if (oldPin === newPin) {
+    showMessage('New PIN must be different from current PIN', 'error');
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('authToken');
+    
+    if (!token) {
+      showMessage('Please login again to change your PIN', 'error');
+      return;
+    }
+    
+    const res = await fetch(`${API_BASE_URL}/auth/change-pin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        oldPin: oldPin,
+        newPin: newPin
+      })
+    });
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      showMessage('PIN changed successfully! 🎉', 'success');
+      
+      // Clear the form
+      $('oldPin').value = '';
+      $('newPin').value = '';
+      $('confirmPin').value = '';
+      
+      // Optional: Show reminder to remember new PIN
+      setTimeout(() => {
+        showMessage('Remember your new PIN for future logins', 'info');
+      }, 2000);
+      
+    } else {
+      showMessage(data.error || 'Failed to change PIN', 'error');
+    }
+    
+  } catch (error) {
+    console.error('Change PIN error:', error);
+    showMessage('Connection error. Please check your internet connection.', 'error');
+  }
 }
 
 function saveEmergencyContact() {

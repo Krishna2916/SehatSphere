@@ -29,7 +29,8 @@
   <pre id="logs"></pre>
 
   <script>
-    const API_BASE_URL = 'https://sehatsphere.onrender.com/api';
+    // Point to local backend for testing
+    const API_BASE_URL = 'http://localhost:3001/api';
     document.getElementById('config').textContent = 'API_BASE_URL: ' + API_BASE_URL;
     
     const log = (msg) => {
