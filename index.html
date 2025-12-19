@@ -156,12 +156,17 @@
   <!-- Backend Config (Firebase disabled for now; using simple login) -->
   <script>
     // Load config and set window.API_BASE_URL synchronously before script.js loads
-    // Use local backend for testing; adjust when pointing to deployed API
-    window.API_BASE_URL = 'http://localhost:3001/api';
-    console.log('✅ Backend configured:', window.API_BASE_URL);
+    // Auto-switch between local and deployed backend
+    (function() {
+      const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      window.API_BASE_URL = isLocal
+        ? 'http://localhost:3001/api'
+        : 'https://sehatsphere.onrender.com/api';
+      console.log('✅ Backend configured:', window.API_BASE_URL);
+    })();
     // Firebase intentionally disabled on main site for testing; fallback auth will be used.
     window.auth = null;
   </script>
-  <script src="script.js?v=10"></script>
+  <script src="script.js?v=12"></script>
 </body>
 </html>

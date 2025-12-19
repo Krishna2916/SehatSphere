@@ -24,12 +24,51 @@ app.use((req, res, next) => {
 });
 
 // Connect to MongoDB (required for authentication)
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/sehatsphere';
-mongoose.connect(MONGODB_URI)
+const isProd = process.env.NODE_ENV === 'production';
+const resolveMongoUri = () => {
+  // Prefer MONGODB_URI, otherwise allow MONGO_URI for hosting platforms that use it
+  const raw = (process.env.MONGODB_URI || process.env.MONGO_URI || '').trim();
+  const fallback = 'mongodb://localhost:27017/sehatsphere';
+
+  if (!raw) {
+    if (isProd) {
+      throw new Error('MONGODB_URI is required in production. Set it to your Mongo connection string.');
+    }
+    console.warn('⚠️  MONGODB_URI not set. Using local fallback mongodb://localhost:27017/sehatsphere');
+    return fallback;
+  }
+
+  const ok = raw.startsWith('mongodb://') || raw.startsWith('mongodb+srv://');
+  if (!ok) {
+    if (isProd) {
+      throw new Error('MONGODB_URI must start with mongodb:// or mongodb+srv://');
+    }
+    console.warn('⚠️  Invalid MONGODB_URI scheme; expected mongodb:// or mongodb+srv://. Using local fallback.');
+    return fallback;
+  }
+
+  return raw;
+};
+
+let MONGODB_URI;
+try {
+  MONGODB_URI = resolveMongoUri();
+  const masked = MONGODB_URI.replace(/:[^:@/]+@/, ':****@');
+  console.log(`Connecting to MongoDB -> ${masked}`);
+} catch (err) {
+  console.error(`❌ MongoDB configuration error: ${err.message}`);
+  process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
   .then(() => console.log('✅ MongoDB connected successfully'))
   .catch(err => {
     console.error('❌ MongoDB connection error:', err.message);
-    console.log('⚠️  Using fallback mode - some features may be limited');
+    if (isProd) {
+      console.error('Stopping server because database is required in production.');
+      process.exit(1);
+    }
+    console.log('⚠️  Continuing without database (development mode only). Some features will be limited.');
   });
 
 // Routes
@@ -39,6 +78,11 @@ const aiRouter = require('./routes/ai');
 const uploadRouter = require('./routes/upload');
 const path = require('path');
 const fs = require('fs');
+
+// Root health-check (plain text)
+app.get('/', (req, res) => {
+  res.status(200).send('SehatSphere backend is live');
+});
 
 // API Routes
 app.use('/api/auth', authRouter);
