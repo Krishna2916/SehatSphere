@@ -105,48 +105,65 @@ window.onload = () => {
 
 // Check backend health and set useBackend flag accordingly
 async function checkBackendHealth() {
-  try {
-    console.log('🔍 Checking backend health at:', `${API_BASE_URL}/health`);
+  const statusEl = document.getElementById('backendStatus');
+
+  const attempt = async (timeoutMs) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-    
-    const res = await fetch(`${API_BASE_URL}/health`, { 
-      method: 'GET',
-      signal: controller.signal 
-    });
-    clearTimeout(timeoutId);
-    
-    console.log('Health check response status:', res.status);
-    if (res.ok) {
-      const j = await res.json();
-      console.log('✅ Backend healthy:', j);
-      useBackend = true;
-      const statusEl = document.getElementById('backendStatus');
-      if (statusEl) {
-        statusEl.innerText = 'Backend: Online';
-        statusEl.style.background = 'linear-gradient(90deg,#2e7d32,#66bb6a)';
-        statusEl.style.color = '#fff';
-      }
-    } else {
-      console.warn('❌ Backend health check failed with status:', res.status, 'using local fallback');
-      useBackend = false;
-      const statusEl = document.getElementById('backendStatus');
-      if (statusEl) {
-        statusEl.innerText = 'Backend: Unhealthy';
-        statusEl.style.background = 'linear-gradient(90deg,#f57c00,#ffb74d)';
-        statusEl.style.color = '#fff';
-      }
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${API_BASE_URL}/health`, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
     }
-  } catch (e) {
-    console.error('❌ Backend unreachable:', e.name, e.message);
-    console.error('Full error:', e);
-    useBackend = false;
-    const statusEl = document.getElementById('backendStatus');
+  };
+
+  const handleSuccess = async (res) => {
+    const j = await res.json();
+    console.log('✅ Backend healthy:', j);
+    useBackend = true;
     if (statusEl) {
-      statusEl.innerText = `Backend: Offline (${e.name})`;
-      statusEl.style.background = 'linear-gradient(90deg,#c62828,#ef5350)';
+      statusEl.innerText = 'Backend: Online';
+      statusEl.style.background = 'linear-gradient(90deg,#2e7d32,#66bb6a)';
       statusEl.style.color = '#fff';
     }
+  };
+
+  try {
+    console.log('🔍 Checking backend health at:', `${API_BASE_URL}/health`);
+    const res = await attempt(8000); // allow slower cold-starts
+    if (res.ok) {
+      await handleSuccess(res);
+      return;
+    }
+    console.warn('❌ Backend health check failed with status:', res.status);
+  } catch (firstErr) {
+    console.warn('⚠️  Health check first attempt failed:', firstErr.name, firstErr.message);
+  }
+
+  // Retry once with a longer timeout before declaring offline
+  try {
+    const res = await attempt(12000);
+    if (res.ok) {
+      await handleSuccess(res);
+      return;
+    }
+    console.warn('❌ Backend health check failed on retry with status:', res.status);
+  } catch (e) {
+    console.error('❌ Backend unreachable after retry:', e.name, e.message);
+    console.error('Full error:', e);
+  }
+
+  useBackend = false;
+  if (statusEl) {
+    statusEl.innerText = 'Backend: Offline (check connection)';
+    statusEl.style.background = 'linear-gradient(90deg,#c62828,#ef5350)';
+    statusEl.style.color = '#fff';
   }
 }
 
