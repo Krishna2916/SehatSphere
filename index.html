@@ -5,6 +5,25 @@
   <title>SehatSphere — Your Personal Health Assistant</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
+  <!-- Affectiva SDK for emotion detection -->
+  <script src="https://cdn.affectiva.com/js/3.2/affdex.js"></script>
+  
+  <!-- TESTING: Open-source libraries (can be removed if not working well) -->
+  <!-- Security: Prevent XSS attacks -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+  <!-- Validation: Email/phone validation -->
+  <script src="https://cdn.jsdelivr.net/npm/validator@13.11.0/validator.min.js"></script>
+  <!-- Date handling: Fix timezone and parsing bugs -->
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/relativeTime.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/utc.js"></script>
+  <!-- Charts: Better analytics visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- HTTP: Better error handling -->
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.6.5/dist/axios.min.js"></script>
+  <!-- Notifications: Better than alert() -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
 </head>
 <body>
   <!-- Splash Screen -->
@@ -13,6 +32,99 @@
     <h1>SehatSphere</h1>
     <p>Your Health, Explained Simply</p>
   </div>
+
+  <!-- Initialize Testing Libraries -->
+  <script>
+    // TESTING: Initialize libraries with fallbacks
+    window.SehatUtils = {
+      // Notification system (fallback to alert if Notyf fails)
+      notify: null,
+      showSuccess: function(msg) {
+        if (this.notify) {
+          this.notify.success(msg);
+        } else {
+          alert('✓ ' + msg);
+        }
+      },
+      showError: function(msg) {
+        if (this.notify) {
+          this.notify.error(msg);
+        } else {
+          alert('✗ ' + msg);
+        }
+      },
+      // Safe date formatting (fallback to native Date)
+      formatDate: function(date, format) {
+        try {
+          if (typeof dayjs !== 'undefined') {
+            return dayjs(date).format(format || 'MMM D, YYYY h:mm A');
+          }
+        } catch (e) {}
+        return new Date(date).toLocaleString();
+      },
+      // Safe HTML sanitization (fallback to text content)
+      sanitize: function(html) {
+        try {
+          if (typeof DOMPurify !== 'undefined') {
+            return DOMPurify.sanitize(html);
+          }
+        } catch (e) {}
+        const div = document.createElement('div');
+        div.textContent = html;
+        return div.innerHTML;
+      },
+      // Email validation (fallback to basic regex)
+      isValidEmail: function(email) {
+        try {
+          if (typeof validator !== 'undefined') {
+            return validator.isEmail(email);
+          }
+        } catch (e) {}
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      },
+      // Phone validation (fallback to basic check)
+      isValidPhone: function(phone) {
+        try {
+          if (typeof validator !== 'undefined') {
+            return validator.isMobilePhone(phone, 'any', { strictMode: false });
+          }
+        } catch (e) {}
+        return phone.length >= 10;
+      }
+    };
+
+    // Initialize Notyf after DOM loads
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        if (typeof Notyf !== 'undefined') {
+          window.SehatUtils.notify = new Notyf({
+            duration: 3000,
+            position: { x: 'right', y: 'top' },
+            dismissible: true
+          });
+          console.log('✓ Notyf notifications loaded');
+        }
+      } catch (e) {
+        console.warn('Notyf failed to load, using fallback alerts');
+      }
+
+      // Log library status
+      const libs = [
+        { name: 'DOMPurify', loaded: typeof DOMPurify !== 'undefined' },
+        { name: 'Validator.js', loaded: typeof validator !== 'undefined' },
+        { name: 'Day.js', loaded: typeof dayjs !== 'undefined' },
+        { name: 'Chart.js', loaded: typeof Chart !== 'undefined' },
+        { name: 'Axios', loaded: typeof axios !== 'undefined' },
+        { name: 'Notyf', loaded: typeof Notyf !== 'undefined' }
+      ];
+      
+      console.log('=== Testing Libraries Status ===');
+      libs.forEach(lib => {
+        console.log(`${lib.loaded ? '✓' : '✗'} ${lib.name}: ${lib.loaded ? 'Loaded' : 'Failed (using fallback)'}`);
+      });
+      console.log('================================');
+    });
+  </script>
 
   <!-- Fixed Header -->
   <header>
@@ -99,6 +211,12 @@
           <p class="subtitle-text">Welcome back! What would you like to do today?</p>
         </section>
 
+        <!-- React-powered Mood & Alert widget -->
+        <section class="card" id="react-mood-card">
+          <h3 style="margin-bottom: 8px;">Daily Mood & Check-ins</h3>
+          <div id="react-mood-root"></div>
+        </section>
+
         <!-- Main Dashboard Buttons (Elder-Friendly) -->
         <div class="dashboard-buttons">
           <a class="dashboard-btn big-btn" href="https://krishna2916.github.io/SehatSphere/test-ai.html" style="text-decoration:none;" rel="noopener" onclick="showMessage('Opening AI assistant...', 'info')">
@@ -167,6 +285,1610 @@
     // Firebase intentionally disabled on main site for testing; fallback auth will be used.
     window.auth = null;
   </script>
+  <!-- face-api.js for face detection and expression recognition -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <!-- Lightweight React mount for mood + alert without a bundler -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel" data-presets="env,react">
+    const { useState, useEffect, useMemo } = React;
+
+    function MoodCheckin({ userId, onSaved, submitMood }) {
+      const [selected, setSelected] = useState(null);
+      const [status, setStatus] = useState('idle');
+      const [message, setMessage] = useState('');
+
+      const emojiScale = [
+        { score: 1, emoji: '😞', label: 'Very low' },
+        { score: 2, emoji: '🙁', label: 'Low' },
+        { score: 3, emoji: '😐', label: 'Okay' },
+        { score: 4, emoji: '🙂', label: 'Good' },
+        { score: 5, emoji: '😄', label: 'Great' }
+      ];
+
+      const submit = async (score) => {
+        setSelected(score);
+        setStatus('saving');
+        setMessage('');
+        try {
+          await submitMood({ userId, moodScore: score, source: 'manual' });
+          setStatus('success');
+          setMessage('Saved. Thanks for checking in.');
+          onSaved?.();
+        } catch (e) {
+          setStatus('error');
+          setMessage(e.message || 'Save failed');
+        }
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0,1fr))', gap: 8 }}>
+            {emojiScale.map(({ score, emoji, label }) => (
+              <button
+                key={score}
+                type="button"
+                onClick={() => submit(score)}
+                disabled={!userId || status === 'saving'}
+                style={{
+                  border: '1px solid #e0e0e0',
+                  borderRadius: 10,
+                  padding: '10px 8px',
+                  background: selected === score ? '#e8f3ff' : '#fafafa',
+                  boxShadow: selected === score ? '0 0 0 3px rgba(30,136,229,0.15)' : 'none',
+                  cursor: userId ? 'pointer' : 'not-allowed'
+                }}
+                aria-label={`${label} (${score})`}
+              >
+                <div style={{ fontSize: 22 }}>{emoji}</div>
+                <div style={{ fontWeight: 700 }}>{score}</div>
+              </button>
+            ))}
+          </div>
+          <div style={{ minHeight: 20, fontSize: 13 }}>
+            {!userId && <span style={{ color: '#c62828' }}>Enter user ID to submit.</span>}
+            {status === 'saving' && <span>Saving…</span>}
+            {status === 'success' && <span style={{ color: '#2e7d32' }}>{message}</span>}
+            {status === 'error' && <span style={{ color: '#c62828' }}>{message}</span>}
+          </div>
+        </div>
+      );
+    }
+
+    function AlertStatus({ userId }) {
+      const [data, setData] = useState(null);
+      const [status, setStatus] = useState('idle');
+      const [error, setError] = useState('');
+
+      useEffect(() => {
+        if (!userId) return;
+        let active = true;
+        (async () => {
+          try {
+            setStatus('loading');
+            const res = await fetch(`${window.API_BASE_URL}/alert/${userId}`);
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || 'Could not load alert');
+            }
+            const json = await res.json();
+            if (active) {
+              setData(json);
+              setStatus('ready');
+            }
+          } catch (e) {
+            if (active) {
+              setError(e.message || 'Load failed');
+              setStatus('error');
+            }
+          }
+        })();
+        return () => { active = false; };
+      }, [userId]);
+
+      const trend = useMemo(() => {
+        if (!data?.moods) return [];
+        const byDay = {};
+        data.moods.forEach(m => {
+          const day = new Date(m.date).toISOString().slice(0, 10);
+          byDay[day] = m.moodScore;
+        });
+        const days = [];
+        const now = new Date();
+        for (let i = 6; i >= 0; i -= 1) {
+          const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+          const key = d.toISOString().slice(0, 10);
+          days.push({ label: key.slice(5), score: byDay[key] ?? null });
+        }
+        return days;
+      }, [data]);
+
+      const stateColor = (state) => {
+        if (state === 'action') return '#c62828';
+        if (state === 'watch') return '#f57c00';
+        return '#2e7d32';
+      };
+
+      if (!userId) return <div style={{ color: '#c62828', fontSize: 13 }}>Enter user ID to view status.</div>;
+      if (status === 'loading') return <div style={{ fontSize: 13 }}>Loading…</div>;
+      if (status === 'error') return <div style={{ color: '#c62828', fontSize: 13 }}>{error}</div>;
+      if (!data) return null;
+
+      const current = data.state?.currentState || 'stable';
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{
+              display: 'inline-block',
+              background: stateColor(current),
+              color: '#fff',
+              padding: '6px 10px',
+              borderRadius: 8,
+              fontWeight: 700,
+              fontSize: 13
+            }}>{current.toUpperCase()}</span>
+            <span style={{ fontSize: 13, color: '#444' }}>{data.state?.explanation || ''}</span>
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Mood trend (last 7 days)</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0,1fr))', gap: 6, alignItems: 'end' }}>
+            {trend.map((d, idx) => (
+              <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <div style={{
+                  width: '100%',
+                  height: d.score ? `${(d.score / 5) * 100}%` : '8px',
+                  minHeight: 8,
+                  background: d.score ? '#1e88e5' : '#e0e0e0',
+                  borderRadius: 6
+                }} title={d.score ? `Mood ${d.score}` : 'No entry'} />
+                <div style={{ fontSize: 11, color: '#666' }}>{d.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function WeeklySurveyAnalytics({ userId }) {
+      const [data, setData] = useState(null);
+      const [status, setStatus] = useState('idle');
+      const [error, setError] = useState('');
+      const [saving, setSaving] = useState(false);
+      const [saveMsg, setSaveMsg] = useState('');
+      const [form, setForm] = useState({ sleep: 1, stress: 1, energy: 1, focus: 1, social: 1 });
+
+      const fetchAnalytics = async () => {
+        if (!userId) return;
+        setStatus('loading');
+        setError('');
+        try {
+          const res = await fetch(`${window.API_BASE_URL}/weekly-survey/${userId}/analytics?weeks=8`);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Could not load analytics');
+          }
+          const json = await res.json();
+          setData(json);
+          setStatus('ready');
+        } catch (e) {
+          setError(e.message || 'Load failed');
+          setStatus('error');
+        }
+      };
+
+      useEffect(() => {
+        if (!userId) {
+          setData(null);
+          setStatus('idle');
+          setError('');
+          return;
+        }
+        fetchAnalytics();
+      }, [userId]);
+
+      const submitSurvey = async () => {
+        if (!userId) return;
+        setSaving(true);
+        setSaveMsg('Saving survey…');
+        try {
+          const payload = {
+            userId,
+            ...form
+          };
+          const res = await fetch(`${window.API_BASE_URL}/weekly-survey`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Could not save survey');
+          }
+          setSaveMsg('Survey saved.');
+          await fetchAnalytics();
+        } catch (e) {
+          setSaveMsg(e.message || 'Save failed');
+        } finally {
+          setSaving(false);
+        }
+      };
+
+      const createSample = async () => {
+        if (!userId) return;
+        setSaving(true);
+        setSaveMsg('Saving sample survey…');
+        try {
+          const rand = () => Math.floor(Math.random() * 3); // 0-2
+          const now = new Date();
+          const monday = new Date(now);
+          monday.setHours(0, 0, 0, 0);
+          monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+          const payload = {
+            userId,
+            sleep: rand(),
+            stress: rand(),
+            energy: rand(),
+            focus: rand(),
+            social: rand(),
+            weekStartDate: monday.toISOString()
+          };
+          const res = await fetch(`${window.API_BASE_URL}/weekly-survey`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Could not save sample survey');
+          }
+          setSaveMsg('Sample survey saved.');
+          await fetchAnalytics();
+        } catch (e) {
+          setSaveMsg(e.message || 'Save failed');
+        } finally {
+          setSaving(false);
+        }
+      };
+
+      const bars = useMemo(() => {
+        if (!data?.series?.length) return [];
+        const recent = data.series.slice(-8);
+        const max = 10; // max possible totalScore
+        return recent.map((s) => ({
+          label: new Date(s.weekStartDate).toISOString().slice(5, 10),
+          value: s.totalScore,
+          height: `${Math.max(8, (s.totalScore / max) * 100)}%`
+        }));
+      }, [data]);
+
+      if (!userId) return <div style={{ color: '#c62828', fontSize: 13 }}>Enter user ID to view survey analytics.</div>;
+      if (status === 'loading') return <div style={{ fontSize: 13 }}>Loading survey analytics…</div>;
+      if (status === 'error') return <div style={{ color: '#c62828', fontSize: 13 }}>{error}</div>;
+      if (!data?.latest) return <div style={{ fontSize: 13, color: '#666' }}>No weekly surveys yet.</div>;
+
+      const latest = data.latest;
+      const averages = data.averages;
+      const fmt = (v) => (v === null || v === undefined ? '—' : v.toFixed ? v.toFixed(1) : v);
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Survey insights (weekly)</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={createSample}
+                disabled={saving}
+                style={{ border: '1px solid #d6dbe6', padding: '6px 10px', borderRadius: 8, background: saving ? '#e3f2fd' : '#e8f5e9', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700 }}
+              >
+                {saving ? 'Saving…' : 'Add sample survey'}
+              </button>
+              <button
+                type="button"
+                onClick={fetchAnalytics}
+                style={{ border: '1px solid #d6dbe6', padding: '6px 10px', borderRadius: 8, background: '#f7f9fc', cursor: 'pointer' }}
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+          <div style={{ border: '1px solid #e0e6f0', borderRadius: 10, padding: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Add current survey</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8, fontSize: 13 }}>
+              {['sleep', 'stress', 'energy', 'focus', 'social'].map((k) => (
+                <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {k.charAt(0).toUpperCase() + k.slice(1)}
+                  <select
+                    value={form[k]}
+                    onChange={(e) => setForm(f => ({ ...f, [k]: Number(e.target.value) }))}
+                    style={{ padding: '8px', border: '1px solid #d6dbe6', borderRadius: 6 }}
+                  >
+                    <option value={0}>0 - Low</option>
+                    <option value={1}>1 - Moderate</option>
+                    <option value={2}>2 - Good</option>
+                  </select>
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={submitSurvey}
+              disabled={saving}
+              style={{ marginTop: 10, border: '1px solid #1e88e5', padding: '8px 12px', borderRadius: 8, background: '#1e88e5', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 700 }}
+            >
+              {saving ? 'Saving…' : 'Submit survey'}
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+            <div style={{ border: '1px solid #e0e6f0', borderRadius: 10, padding: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Latest survey</div>
+              <div style={{ fontSize: 13, color: '#444' }}>
+                <div>Week: {latest.weekStartDate ? new Date(latest.weekStartDate).toLocaleDateString() : '—'}</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>Total: {fmt(latest.totalScore)}</div>
+                <div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 4 }}>
+                  <span>Sleep: {fmt(latest.sleep)}</span>
+                  <span>Stress: {fmt(latest.stress)}</span>
+                  <span>Energy: {fmt(latest.energy)}</span>
+                  <span>Focus: {fmt(latest.focus)}</span>
+                  <span>Social: {fmt(latest.social)}</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ border: '1px solid #e0e6f0', borderRadius: 10, padding: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>Averages (last {averages?.windowWeeks || 8} weeks)</div>
+              {averages ? (
+                <div style={{ fontSize: 13, color: '#444', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 4 }}>
+                  <span>Sleep: {fmt(averages.sleep)}</span>
+                  <span>Stress: {fmt(averages.stress)}</span>
+                  <span>Energy: {fmt(averages.energy)}</span>
+                  <span>Focus: {fmt(averages.focus)}</span>
+                  <span>Social: {fmt(averages.social)}</span>
+                  <span>Total: {fmt(averages.total)}</span>
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: '#666' }}>Not enough data to compute averages.</div>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Trend (last {bars.length || 0} weeks)</div>
+            {bars.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${bars.length}, minmax(0,1fr))`, gap: 6, alignItems: 'end' }}>
+                {bars.map((b, idx) => (
+                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{
+                      width: '100%',
+                      height: b.height,
+                      minHeight: 8,
+                      background: '#7c4dff',
+                      borderRadius: 6
+                    }} title={`Total ${b.value}`} />
+                    <div style={{ fontSize: 11, color: '#666' }}>{b.label}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: '#666' }}>No trend yet.</div>
+            )}
+            {saveMsg && <div style={{ fontSize: 12, color: '#2e7d32' }}>{saveMsg}</div>}
+          </div>
+        </div>
+      );
+    }
+
+    function EmotionMonitor({ userId }) {
+      const [status, setStatus] = useState('idle');
+      const [message, setMessage] = useState('');
+      const detectorRef = React.useRef(null);
+      const latestEmotions = React.useRef(null);
+      const intervalRef = React.useRef(null);
+
+      const stopDetector = () => {
+        try {
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          if (detectorRef.current) {
+            detectorRef.current.stop();
+            detectorRef.current.removeEventListener();
+            detectorRef.current = null;
+          }
+        } catch (e) {
+          console.warn('Detector stop issue', e?.message);
+        }
+      };
+
+      useEffect(() => {
+        const onVisibility = () => {
+          if (document.hidden) stopDetector();
+        };
+        const onUnload = () => stopDetector();
+        document.addEventListener('visibilitychange', onVisibility);
+        window.addEventListener('beforeunload', onUnload);
+        return () => {
+          document.removeEventListener('visibilitychange', onVisibility);
+          window.removeEventListener('beforeunload', onUnload);
+          stopDetector();
+        };
+      }, []);
+
+      const startDetector = async () => {
+        if (!userId) {
+          setMessage('Enter user ID first.');
+          return;
+        }
+        if (status === 'running') return;
+        try {
+          if (!window.affdex) {
+            setMessage('Affectiva SDK not loaded.');
+            return;
+          }
+          const consent = window.confirm('Allow camera for emotion detection?');
+          if (!consent) {
+            setMessage('Camera permission denied.');
+            return;
+          }
+
+          stopDetector();
+          const divRoot = document.getElementById('affdex_emotion_container');
+          if (!divRoot) {
+            setMessage('Container missing.');
+            return;
+          }
+
+          const detector = new affdex.CameraDetector(divRoot, 640, 480, affdex.FaceDetectorMode.LARGE_FACES);
+          detector.detectAllEmotions();
+          detectorRef.current = detector;
+
+          detector.addEventListener('onInitializeSuccess', () => {
+            setStatus('running');
+            setMessage('Camera active. Collecting emotions...');
+          });
+
+          detector.addEventListener('onStopSuccess', () => {
+            setStatus('idle');
+            setMessage('Camera stopped.');
+          });
+
+          detector.addEventListener('onImageResultsSuccess', (faces, image, timestamp) => {
+            if (faces && faces.length > 0) {
+              const em = faces[0].emotions || {};
+              latestEmotions.current = {
+                sadness: em.sadness ?? null,
+                anger: em.anger ?? null,
+                fear: em.fear ?? null,
+                engagement: em.engagement ?? null,
+                capturedAt: new Date().toISOString()
+              };
+            }
+          });
+
+          detector.start();
+
+          intervalRef.current = setInterval(async () => {
+            if (!latestEmotions.current) return;
+            try {
+              await fetch(`${window.API_BASE_URL}/emotion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId,
+                  emotions: {
+                    sadness: latestEmotions.current.sadness,
+                    anger: latestEmotions.current.anger,
+                    fear: latestEmotions.current.fear,
+                    engagement: latestEmotions.current.engagement
+                  },
+                  capturedAt: latestEmotions.current.capturedAt
+                })
+              });
+            } catch (e) {
+              console.warn('Emotion send failed', e?.message);
+            }
+          }, 10000);
+        } catch (e) {
+          console.error('Detector error', e);
+          setMessage(e.message || 'Could not start detector');
+          stopDetector();
+        }
+      };
+
+      const stop = () => {
+        stopDetector();
+      };
+
+      return (
+        <div style={{ border: '1px solid #e0e6f0', borderRadius: 10, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 13 }}>Real-time emotion (Affectiva)</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={startDetector}
+              disabled={status === 'running'}
+              style={{ border: '1px solid #1e88e5', padding: '8px 12px', borderRadius: 8, background: '#1e88e5', color: '#fff', cursor: status === 'running' ? 'not-allowed' : 'pointer', fontWeight: 700 }}
+            >
+              {status === 'running' ? 'Running' : 'Start detection'}
+            </button>
+            <button
+              type="button"
+              onClick={stop}
+              style={{ border: '1px solid #d6dbe6', padding: '8px 12px', borderRadius: 8, background: '#f7f9fc', cursor: 'pointer', fontWeight: 700 }}
+            >
+              Stop
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: '#444' }}>Captures sadness, anger, fear, engagement every 10s. No video is stored or sent.</div>
+          <div style={{ fontSize: 12, color: '#2e7d32' }}>{message}</div>
+          <div id="affdex_emotion_container" style={{ width: 0, height: 0, overflow: 'hidden' }} aria-hidden="true"></div>
+        </div>
+      );
+    }
+
+    function MoodPanel() {
+      const [userId, setUserId] = useState('');
+      const [key, setKey] = useState(0);
+      const [faceStatus, setFaceStatus] = useState('');
+      const [faceRunning, setFaceRunning] = useState(false);
+      const refresh = () => setKey(k => k + 1);
+
+      const submitMood = async ({ userId, moodScore, source }) => {
+        const res = await fetch(`${window.API_BASE_URL}/mood`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, moodScore, source })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Could not save mood');
+        }
+      };
+
+      // Basic face-based mood detection (client-only, optional)
+      async function runFaceSession({ userId, onStatus }) {
+        const model = await faceLandmarksDetection.load(
+          faceLandmarksDetection.SupportedPackages.mediapipeFacemesh
+        );
+
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const video = document.createElement('video');
+        video.autoplay = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        await video.play();
+
+        const start = performance.now();
+        const durationMs = 35000; // ~35s capture
+        const counts = { happy: 0, neutral: 0, sad: 0, distressed: 0 };
+
+        const stopStream = () => stream.getTracks().forEach(t => t.stop());
+
+        const classify = (face) => {
+          const key = (i) => face.keypoints[i];
+          const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+          const mouthWidth = dist(key(61), key(291));
+          const mouthHeight = dist(key(13), key(14));
+          const browLift = key(105).y - key(107).y + key(336).y - key(334).y;
+          const smileRatio = mouthWidth / (mouthHeight || 1);
+
+          if (smileRatio > 2.6) return 'happy';
+          if (mouthHeight / (mouthWidth || 1) > 0.35 || browLift < -1) return 'distressed';
+          if (smileRatio < 1.6) return 'sad';
+          return 'neutral';
+        };
+
+        return new Promise((resolve) => {
+          let stopped = false;
+          const loop = async () => {
+            if (stopped) return;
+            const nowTs = performance.now();
+            if (nowTs - start > durationMs) {
+              stopped = true;
+              stopStream();
+              const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'neutral';
+              resolve(dominant);
+              return;
+            }
+            try {
+              const faces = await model.estimateFaces({ input: video });
+              if (faces && faces.length) {
+                const emo = classify(faces[0]);
+                counts[emo] = (counts[emo] || 0) + 1;
+              }
+            } catch (err) {
+              // ignore frame errors
+            }
+            requestAnimationFrame(loop);
+          };
+          onStatus?.('Camera active — capturing for ~35s');
+          loop();
+          resolve.cancel = () => {
+            stopped = true;
+            stopStream();
+            resolve('neutral');
+          };
+        });
+      }
+
+      const runFace = async () => {
+        if (!userId) {
+          setFaceStatus('Enter user ID first.');
+          return;
+        }
+        try {
+          setFaceRunning(true);
+          setFaceStatus('Requesting camera…');
+          const dominant = await runFaceSession({ userId, onStatus: setFaceStatus });
+          const scoreMap = { happy: 5, neutral: 3, sad: 2, distressed: 1 };
+          const moodScore = scoreMap[dominant] ?? 3;
+          setFaceStatus(`Detected ${dominant}. Submitting…`);
+          await submitMood({ userId, moodScore, source: 'face' });
+          setFaceStatus('Saved from camera check.');
+          refresh();
+        } catch (e) {
+          setFaceStatus(e.message || 'Unable to run face check.');
+        } finally {
+          setFaceRunning(false);
+        }
+      };
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <label style={{ fontSize: 13, fontWeight: 600 }}>
+            User ID (healthId or _id)
+            <input
+              style={{ width: '100%', marginTop: 6, padding: 10, borderRadius: 6, border: '1px solid #d6dbe6' }}
+              value={userId}
+              onChange={e => setUserId(e.target.value.trim())}
+              placeholder="Enter userId"
+            />
+          </label>
+          <MoodCheckin userId={userId} onSaved={refresh} submitMood={submitMood} />
+          <div style={{ border: '1px dashed #d6dbe6', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 13 }}>Optional: Visual mood check</div>
+            <button
+              type="button"
+              onClick={runFace}
+              disabled={faceRunning}
+              style={{
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid #1e88e5',
+                background: faceRunning ? '#e3f2fd' : '#1e88e5',
+                color: faceRunning ? '#0d47a1' : '#fff',
+                cursor: faceRunning ? 'not-allowed' : 'pointer',
+                fontWeight: 700
+              }}
+            >
+              {faceRunning ? 'Camera active…' : 'Start Visual Mood Check'}
+            </button>
+            <div style={{ fontSize: 12, color: '#444' }}>
+              Uses your camera for ~35 seconds, runs only on this device, never sends images.
+            </div>
+            <div style={{ fontSize: 12, color: faceRunning ? '#f57c00' : '#2e7d32' }}>{faceStatus}</div>
+          </div>
+          <AlertStatus key={key} userId={userId} />
+          <div style={{ height: 1, background: '#edf0f7', margin: '4px 0' }} />
+          <WeeklySurveyAnalytics userId={userId} />
+          <EmotionMonitor userId={userId} />
+        </div>
+      );
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const mount = document.getElementById('react-mood-root');
+      if (mount) {
+        const root = ReactDOM.createRoot(mount);
+        root.render(<MoodPanel />);
+      }
+    });
+  </script>
+    <!-- Fallback (non-React) renderer if React/Babel fails to mount -->
+    <script>
+      // Function to load emotion tracker UI
+      function loadEmotionTrackerUI() {
+        const mount = document.getElementById('emotionTrackerContent') || document.getElementById('react-mood-root');
+        if (!mount) return;
+        
+        // Clear existing content
+        mount.innerHTML = '';
+        
+        // Get userId from session if available
+        const sessionUserId = (typeof session !== 'undefined' && session.patientId) ? session.patientId : '';
+        const state = { userId: sessionUserId, status: '', message: '' };
+
+          const container = document.createElement('div');
+          container.style.display = 'flex';
+          container.style.flexDirection = 'column';
+          container.style.gap = '10px';
+          container.style.padding = '8px 0';
+
+          const label = document.createElement('label');
+          label.textContent = 'User ID (healthId or _id)';
+          label.style.fontWeight = '600';
+          label.style.fontSize = '13px';
+          const input = document.createElement('input');
+          input.placeholder = 'Enter userId';
+          input.value = sessionUserId; // Pre-fill with session userId
+          input.style.padding = '10px';
+          input.style.border = '1px solid #d6dbe6';
+          input.style.borderRadius = '6px';
+          input.addEventListener('input', (e) => { state.userId = e.target.value.trim(); });
+          label.appendChild(input);
+
+          const btnRow = document.createElement('div');
+          btnRow.style.display = 'grid';
+          btnRow.style.gridTemplateColumns = 'repeat(5, minmax(0,1fr))';
+          btnRow.style.gap = '8px';
+
+          const status = document.createElement('div');
+          status.style.minHeight = '18px';
+          status.style.fontSize = '13px';
+
+          // Simple analytics state
+          const analyticsBox = document.createElement('div');
+          analyticsBox.style.borderTop = '1px solid #edf0f7';
+          analyticsBox.style.marginTop = '10px';
+          analyticsBox.style.paddingTop = '10px';
+          analyticsBox.style.display = 'flex';
+          analyticsBox.style.flexDirection = 'column';
+          analyticsBox.style.gap = '8px';
+          const analyticsTitle = document.createElement('div');
+          analyticsTitle.style.fontWeight = '700';
+          analyticsTitle.style.fontSize = '13px';
+          analyticsTitle.textContent = 'Survey insights (fallback)';
+          const analyticsMsg = document.createElement('div');
+          analyticsMsg.style.fontSize = '12px';
+          analyticsMsg.style.color = '#666';
+          analyticsMsg.textContent = 'Enter user ID then refresh.';
+          const analyticsData = document.createElement('div');
+          analyticsData.style.fontSize = '12px';
+          analyticsData.style.color = '#444';
+          analyticsData.style.display = 'grid';
+          analyticsData.style.gridTemplateColumns = 'repeat(auto-fit, minmax(180px, 1fr))';
+          analyticsData.style.gap = '6px';
+
+          const fetchAnalytics = async () => {
+            if (!state.userId) {
+              analyticsMsg.style.color = '#c62828';
+              analyticsMsg.textContent = 'Enter user ID first.';
+              return;
+            }
+            analyticsMsg.style.color = '#444';
+            analyticsMsg.textContent = 'Loading…';
+            analyticsData.innerHTML = '';
+            try {
+              const res = await fetch(`${window.API_BASE_URL}/weekly-survey/${state.userId}/analytics?weeks=8`);
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'Could not load analytics');
+              }
+              const json = await res.json();
+              if (!json.latest) {
+                analyticsMsg.style.color = '#666';
+                analyticsMsg.textContent = 'No weekly surveys yet.';
+                return;
+              }
+              analyticsMsg.style.color = '#2e7d32';
+              analyticsMsg.textContent = 'Loaded.';
+              analyticsData.innerHTML = '';
+              const latest = document.createElement('div');
+              latest.style.border = '1px solid #e0e6f0';
+              latest.style.borderRadius = '8px';
+              latest.style.padding = '8px';
+              latest.innerHTML = `Latest week: ${json.latest.weekStartDate ? new Date(json.latest.weekStartDate).toLocaleDateString() : '—'}<br>
+                Total: ${json.latest.totalScore}<br>
+                Sleep: ${json.latest.sleep}, Stress: ${json.latest.stress}, Energy: ${json.latest.energy}, Focus: ${json.latest.focus}, Social: ${json.latest.social}`;
+              analyticsData.appendChild(latest);
+              if (json.averages) {
+                const avg = document.createElement('div');
+                avg.style.border = '1px solid #e0e6f0';
+                avg.style.borderRadius = '8px';
+                avg.style.padding = '8px';
+                avg.innerHTML = `Averages (last ${json.averages.windowWeeks || 8}w):
+                  Sleep ${json.averages.sleep?.toFixed?.(1) ?? '—'},
+                  Stress ${json.averages.stress?.toFixed?.(1) ?? '—'},
+                  Energy ${json.averages.energy?.toFixed?.(1) ?? '—'},
+                  Focus ${json.averages.focus?.toFixed?.(1) ?? '—'},
+                  Social ${json.averages.social?.toFixed?.(1) ?? '—'},
+                  Total ${json.averages.total?.toFixed?.(1) ?? '—'}`;
+                analyticsData.appendChild(avg);
+              }
+            } catch (e) {
+              analyticsMsg.style.color = '#c62828';
+              analyticsMsg.textContent = e.message || 'Load failed';
+            }
+          };
+
+          const addSample = async () => {
+            if (!state.userId) {
+              analyticsMsg.style.color = '#c62828';
+              analyticsMsg.textContent = 'Enter user ID first.';
+              return;
+            }
+            analyticsMsg.style.color = '#444';
+            analyticsMsg.textContent = 'Saving sample survey…';
+            const rand = () => Math.floor(Math.random() * 3);
+            const now = new Date();
+            const monday = new Date(now);
+            monday.setHours(0, 0, 0, 0);
+            monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+            const payload = {
+              userId: state.userId,
+              sleep: rand(),
+              stress: rand(),
+              energy: rand(),
+              focus: rand(),
+              social: rand(),
+              weekStartDate: monday.toISOString()
+            };
+            try {
+              const res = await fetch(`${window.API_BASE_URL}/weekly-survey`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'Could not save sample survey');
+              }
+              analyticsMsg.style.color = '#2e7d32';
+              analyticsMsg.textContent = 'Sample saved.';
+              fetchAnalytics();
+            } catch (e) {
+              analyticsMsg.style.color = '#c62828';
+              analyticsMsg.textContent = e.message || 'Save failed';
+            }
+          };
+
+          const submitMood = async (score, source) => {
+            if (!state.userId) {
+              status.style.color = '#c62828';
+              status.textContent = 'Enter user ID first.';
+              return;
+            }
+            status.style.color = '#444';
+            status.textContent = 'Saving…';
+            try {
+              const res = await fetch(`${window.API_BASE_URL}/mood`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: state.userId, moodScore: score, source })
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'Could not save mood');
+              }
+              status.style.color = '#2e7d32';
+              status.textContent = 'Saved.';
+            } catch (e) {
+              status.style.color = '#c62828';
+              status.textContent = e.message || 'Save failed';
+            }
+          };
+
+          [1,2,3,4,5].forEach(score => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = score;
+            b.style.padding = '10px 8px';
+            b.style.border = '1px solid #e0e0e0';
+            b.style.borderRadius = '10px';
+            b.style.background = '#fafafa';
+            b.addEventListener('click', () => submitMood(score, 'manual'));
+            btnRow.appendChild(b);
+          });
+
+          const faceBox = document.createElement('div');
+          faceBox.style.border = '1px dashed #d6dbe6';
+          faceBox.style.borderRadius = '10px';
+          faceBox.style.padding = '10px';
+          faceBox.style.display = 'flex';
+          faceBox.style.flexDirection = 'column';
+          faceBox.style.gap = '6px';
+          const faceTitle = document.createElement('div');
+          faceTitle.textContent = 'Optional: Visual mood check';
+          faceTitle.style.fontWeight = '700';
+          faceTitle.style.fontSize = '13px';
+          const faceBtn = document.createElement('button');
+          faceBtn.type = 'button';
+          faceBtn.textContent = 'Start Visual Mood Check';
+          faceBtn.style.padding = '10px 12px';
+          faceBtn.style.borderRadius = '8px';
+          faceBtn.style.border = '1px solid #1e88e5';
+          faceBtn.style.background = '#1e88e5';
+          faceBtn.style.color = '#fff';
+          faceBtn.style.fontWeight = '700';
+          const faceStatus = document.createElement('div');
+          faceStatus.style.fontSize = '12px';
+          faceStatus.style.color = '#444';
+          faceStatus.textContent = 'Runs on this device; no images are sent.';
+          const videoPreview = document.createElement('video');
+          videoPreview.autoplay = true;
+          videoPreview.playsInline = true;
+          videoPreview.style.width = '100%';
+          videoPreview.style.maxWidth = '400px';
+          videoPreview.style.borderRadius = '8px';
+          videoPreview.style.display = 'none';
+          videoPreview.style.marginTop = '8px';
+
+          faceBtn.addEventListener('click', async () => {
+            if (!state.userId) {
+              faceStatus.style.color = '#c62828';
+              faceStatus.textContent = 'Enter user ID first.';
+              return;
+            }
+
+            // Check if face-api.js is loaded
+            if (typeof faceapi === 'undefined') {
+              faceStatus.style.color = '#c62828';
+              faceStatus.textContent = 'Face detection library not loaded. Please refresh.';
+              return;
+            }
+
+            faceBtn.disabled = true;
+            faceBtn.textContent = 'Loading models…';
+            faceStatus.style.color = '#f57c00';
+            faceStatus.textContent = 'Loading face detection models…';
+
+            try {
+              // Load face-api.js models from CDN
+              const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+              await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+              ]);
+
+              faceBtn.textContent = 'Camera active…';
+              faceStatus.textContent = 'Starting camera and analyzing expressions…';
+
+              // Get video stream
+              const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: 640, height: 480 }, 
+                audio: false 
+              });
+              
+              videoPreview.srcObject = stream;
+              videoPreview.style.display = 'block';
+              await videoPreview.play();
+
+              // Collect expression data over 12 seconds for better accuracy
+              const durationMs = 12000;
+              const start = performance.now();
+              const expressionCounts = { happy: 0, sad: 0, angry: 0, neutral: 0, fearful: 0, disgusted: 0, surprised: 0 };
+              const expressionScores = { happy: [], sad: [], angry: [], neutral: [], fearful: [], disgusted: [], surprised: [] };
+              let sampleCount = 0;
+
+              const detectInterval = setInterval(async () => {
+                try {
+                  const detections = await faceapi
+                    .detectSingleFace(videoPreview, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 }))
+                    .withFaceExpressions();
+
+                  if (detections && detections.expressions) {
+                    const expressions = detections.expressions;
+                    
+                    // Store all expression scores for better analysis
+                    Object.keys(expressions).forEach(expr => {
+                      if (expressionScores[expr]) {
+                        expressionScores[expr].push(expressions[expr]);
+                      }
+                    });
+                    
+                    // Get dominant expression with better thresholds
+                    let maxExpr = 'neutral';
+                    let maxVal = 0;
+                    
+                    // Check each expression with special handling for sad
+                    Object.entries(expressions).forEach(([expr, val]) => {
+                      // Much lower threshold for sad to ensure it's detected
+                      const threshold = expr === 'sad' ? 0.15 : 0.4;
+                      if (val > threshold && val > maxVal) {
+                        maxExpr = expr;
+                        maxVal = val;
+                      }
+                    });
+                    
+                    // If sad has any reasonable confidence, boost it
+                    if (expressions.sad > 0.2 && expressions.sad > maxVal * 0.7) {
+                      maxExpr = 'sad';
+                    }
+                    
+                    expressionCounts[maxExpr] = (expressionCounts[maxExpr] || 0) + 1;
+                    sampleCount++;
+                  }
+                } catch (err) {
+                  // Ignore detection errors
+                }
+
+                if (performance.now() - start > durationMs) {
+                  clearInterval(detectInterval);
+                  stream.getTracks().forEach(t => t.stop());
+                  videoPreview.style.display = 'none';
+
+                  // Determine dominant expression using weighted average
+                  let dominant = 'neutral';
+                  let maxAvg = 0;
+                  
+                  for (const [expr, scores] of Object.entries(expressionScores)) {
+                    if (scores.length > 0) {
+                      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                      if (avg > maxAvg) {
+                        maxAvg = avg;
+                        dominant = expr;
+                      }
+                    }
+                  }
+
+                  // Map expression to mood score (1-5)
+                  const scoreMap = {
+                    happy: 5,
+                    surprised: 4,
+                    neutral: 3,
+                    sad: 2,
+                    fearful: 2,
+                    disgusted: 2,
+                    angry: 1
+                  };
+                  const moodScore = scoreMap[dominant] || 3;
+
+                  faceStatus.style.color = '#2e7d32';
+                  faceStatus.textContent = `Detected ${dominant} (${sampleCount} samples). Saving…`;
+
+                  // Save mood to backend
+                  try {
+                    const res = await fetch(`${window.API_BASE_URL}/mood`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        userId: state.userId, 
+                        moodScore, 
+                        source: 'face-api' 
+                      })
+                    });
+                    
+                    if (!res.ok) {
+                      const err = await res.json().catch(() => ({}));
+                      throw new Error(err.error || 'Could not save mood');
+                    }
+                    
+                    faceStatus.style.color = '#2e7d32';
+                    faceStatus.textContent = `Saved mood: ${dominant} (score: ${moodScore})`;
+                  } catch (e) {
+                    faceStatus.style.color = '#c62828';
+                    faceStatus.textContent = e.message || 'Failed to save mood.';
+                  } finally {
+                    faceBtn.disabled = false;
+                    faceBtn.textContent = 'Start Visual Mood Check';
+                  }
+                }
+              }, 500); // Check every 500ms
+
+            } catch (e) {
+              faceStatus.style.color = '#c62828';
+              faceStatus.textContent = e.message || 'Unable to run visual check.';
+            } finally {
+              faceBtn.disabled = false;
+              faceBtn.textContent = 'Start Visual Mood Check';
+            }
+          });
+
+          faceBox.appendChild(faceTitle);
+          faceBox.appendChild(faceBtn);
+          faceBox.appendChild(faceStatus);
+          faceBox.appendChild(videoPreview);
+
+          // Manual Emotion Survey
+          const emotionSurveyBox = document.createElement('div');
+          emotionSurveyBox.style.border = '1px dashed #d6dbe6';
+          emotionSurveyBox.style.borderRadius = '10px';
+          emotionSurveyBox.style.padding = '10px';
+          emotionSurveyBox.style.marginTop = '12px';
+          emotionSurveyBox.style.display = 'flex';
+          emotionSurveyBox.style.flexDirection = 'column';
+          emotionSurveyBox.style.gap = '10px';
+
+          const emotionTitle = document.createElement('div');
+          emotionTitle.textContent = 'Emotion Check-In';
+          emotionTitle.style.fontWeight = '700';
+          emotionTitle.style.fontSize = '13px';
+
+          const emotionSubtitle = document.createElement('div');
+          emotionSubtitle.textContent = 'How are you feeling right now? (Select all that apply)';
+          emotionSubtitle.style.fontSize = '12px';
+          emotionSubtitle.style.color = '#666';
+
+          const emotionsGrid = document.createElement('div');
+          emotionsGrid.style.display = 'grid';
+          emotionsGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(100px, 1fr))';
+          emotionsGrid.style.gap = '8px';
+
+          const emotionOptions = [
+            { name: 'Happy', emoji: '😊', color: '#4caf50' },
+            { name: 'Sad', emoji: '😢', color: '#2196f3' },
+            { name: 'Anxious', emoji: '😰', color: '#ff9800' },
+            { name: 'Angry', emoji: '😠', color: '#f44336' },
+            { name: 'Calm', emoji: '😌', color: '#00bcd4' },
+            { name: 'Stressed', emoji: '😫', color: '#9c27b0' },
+            { name: 'Excited', emoji: '🤗', color: '#ff5722' },
+            { name: 'Tired', emoji: '😴', color: '#607d8b' }
+          ];
+
+          const selectedEmotions = new Set();
+
+          emotionOptions.forEach(emotion => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.style.padding = '8px';
+            btn.style.border = '2px solid #e0e0e0';
+            btn.style.borderRadius = '8px';
+            btn.style.background = '#fff';
+            btn.style.cursor = 'pointer';
+            btn.style.display = 'flex';
+            btn.style.flexDirection = 'column';
+            btn.style.alignItems = 'center';
+            btn.style.gap = '4px';
+            btn.style.transition = 'all 0.2s';
+
+            const emojiSpan = document.createElement('span');
+            emojiSpan.textContent = emotion.emoji;
+            emojiSpan.style.fontSize = '24px';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = emotion.name;
+            nameSpan.style.fontSize = '11px';
+            nameSpan.style.fontWeight = '600';
+
+            btn.appendChild(emojiSpan);
+            btn.appendChild(nameSpan);
+
+            btn.addEventListener('click', () => {
+              if (selectedEmotions.has(emotion.name)) {
+                selectedEmotions.delete(emotion.name);
+                btn.style.background = '#fff';
+                btn.style.borderColor = '#e0e0e0';
+              } else {
+                selectedEmotions.add(emotion.name);
+                btn.style.background = emotion.color + '15';
+                btn.style.borderColor = emotion.color;
+              }
+            });
+
+            emotionsGrid.appendChild(btn);
+          });
+
+          const notesArea = document.createElement('textarea');
+          notesArea.placeholder = 'Optional: Add notes about your feelings...';
+          notesArea.style.width = '100%';
+          notesArea.style.minHeight = '60px';
+          notesArea.style.padding = '8px';
+          notesArea.style.border = '1px solid #e0e0e0';
+          notesArea.style.borderRadius = '6px';
+          notesArea.style.fontSize = '12px';
+          notesArea.style.fontFamily = 'inherit';
+          notesArea.style.resize = 'vertical';
+
+          const submitEmotionBtn = document.createElement('button');
+          submitEmotionBtn.type = 'button';
+          submitEmotionBtn.textContent = 'Save Emotion Check-In';
+          submitEmotionBtn.style.padding = '10px';
+          submitEmotionBtn.style.background = '#4caf50';
+          submitEmotionBtn.style.color = '#fff';
+          submitEmotionBtn.style.border = 'none';
+          submitEmotionBtn.style.borderRadius = '8px';
+          submitEmotionBtn.style.fontWeight = '700';
+          submitEmotionBtn.style.cursor = 'pointer';
+
+          const emotionStatus = document.createElement('div');
+          emotionStatus.style.fontSize = '12px';
+          emotionStatus.style.minHeight = '18px';
+
+          submitEmotionBtn.addEventListener('click', async () => {
+            if (!state.userId) {
+              emotionStatus.style.color = '#c62828';
+              emotionStatus.textContent = 'Enter user ID first.';
+              return;
+            }
+
+            if (selectedEmotions.size === 0) {
+              emotionStatus.style.color = '#f57c00';
+              emotionStatus.textContent = 'Please select at least one emotion.';
+              return;
+            }
+
+            submitEmotionBtn.disabled = true;
+            emotionStatus.style.color = '#444';
+            emotionStatus.textContent = 'Saving...';
+
+            try {
+              const res = await fetch(`${window.API_BASE_URL}/emotion`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  userId: state.userId,
+                  emotions: Array.from(selectedEmotions),
+                  intensity: 5, // Default intensity
+                  notes: notesArea.value.trim(),
+                  timestamp: new Date().toISOString(),
+                  source: 'manual-survey'
+                })
+              });
+
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'Failed to save');
+              }
+
+              const savedData = await res.json();
+              
+              // Check if sadness + fear > 70%
+              const totalNegative = (savedData.emotion?.sadness || 0) + (savedData.emotion?.fear || 0);
+              if (totalNegative > 70) {
+                // Show prominent warning
+                const warningMsg = `⚠️ HIGH STRESS ALERT ⚠️\n\nYour current sadness and fear levels are ${Math.round(totalNegative)}%. This indicates high emotional distress.\n\nWe strongly recommend consulting a mental health professional or reaching out to someone you trust.`;
+                alert(warningMsg);
+                
+                emotionStatus.style.color = '#f57c00';
+                emotionStatus.textContent = `⚠️ Warning: High stress levels detected (${Math.round(totalNegative)}%). Please seek support.`;
+              } else {
+                emotionStatus.style.color = '#2e7d32';
+                emotionStatus.textContent = '✓ Emotion check-in saved successfully!';
+              }
+              
+              // Reset form
+              selectedEmotions.clear();
+              emotionsGrid.querySelectorAll('button').forEach(btn => {
+                btn.style.background = '#fff';
+                btn.style.borderColor = '#e0e0e0';
+              });
+              notesArea.value = '';
+
+              setTimeout(() => {
+                emotionStatus.textContent = '';
+              }, 3000);
+            } catch (e) {
+              emotionStatus.style.color = '#c62828';
+              emotionStatus.textContent = e.message || 'Failed to save emotion check-in.';
+            } finally {
+              submitEmotionBtn.disabled = false;
+            }
+          });
+
+          emotionSurveyBox.appendChild(emotionTitle);
+          emotionSurveyBox.appendChild(emotionSubtitle);
+          emotionSurveyBox.appendChild(emotionsGrid);
+          emotionSurveyBox.appendChild(notesArea);
+          emotionSurveyBox.appendChild(submitEmotionBtn);
+          emotionSurveyBox.appendChild(emotionStatus);
+
+          container.appendChild(label);
+          container.appendChild(btnRow);
+          container.appendChild(status);
+          // Analytics controls (fallback)
+          const ctrlRow = document.createElement('div');
+          ctrlRow.style.display = 'flex';
+          ctrlRow.style.gap = '8px';
+          ctrlRow.style.flexWrap = 'wrap';
+          const sampleBtn = document.createElement('button');
+          sampleBtn.textContent = 'Add sample survey';
+          sampleBtn.style.padding = '8px 10px';
+          sampleBtn.style.border = '1px solid #d6dbe6';
+          sampleBtn.style.borderRadius = '8px';
+          sampleBtn.style.background = '#e8f5e9';
+          sampleBtn.style.fontWeight = '700';
+          sampleBtn.addEventListener('click', addSample);
+          const refreshBtn = document.createElement('button');
+          refreshBtn.textContent = 'Refresh insights';
+          refreshBtn.style.padding = '8px 10px';
+          refreshBtn.style.border = '1px solid #d6dbe6';
+          refreshBtn.style.borderRadius = '8px';
+          refreshBtn.style.background = '#f7f9fc';
+          refreshBtn.style.fontWeight = '700';
+          refreshBtn.addEventListener('click', fetchAnalytics);
+          ctrlRow.appendChild(sampleBtn);
+          ctrlRow.appendChild(refreshBtn);
+
+          analyticsBox.appendChild(analyticsTitle);
+          analyticsBox.appendChild(ctrlRow);
+          analyticsBox.appendChild(analyticsMsg);
+          analyticsBox.appendChild(analyticsData);
+
+          // Emotion Analytics Section
+          const emotionAnalyticsBox = document.createElement('div');
+          emotionAnalyticsBox.style.padding = '12px';
+          emotionAnalyticsBox.style.border = '1px solid #d6dbe6';
+          emotionAnalyticsBox.style.borderRadius = '10px';
+          emotionAnalyticsBox.style.marginTop = '12px';
+          emotionAnalyticsBox.style.background = '#f9fafb';
+
+          const emotionAnalyticsTitle = document.createElement('div');
+          emotionAnalyticsTitle.textContent = 'Emotion Analytics';
+          emotionAnalyticsTitle.style.fontWeight = '700';
+          emotionAnalyticsTitle.style.fontSize = '13px';
+          emotionAnalyticsTitle.style.marginBottom = '10px';
+
+          const emotionAnalyticsMsg = document.createElement('div');
+          emotionAnalyticsMsg.style.fontSize = '12px';
+          emotionAnalyticsMsg.style.color = '#666';
+          emotionAnalyticsMsg.style.marginBottom = '10px';
+
+          const emotionAnalyticsData = document.createElement('div');
+          emotionAnalyticsData.style.fontSize = '12px';
+
+          const refreshEmotionBtn = document.createElement('button');
+          refreshEmotionBtn.textContent = 'Load Emotion Analytics';
+          refreshEmotionBtn.style.padding = '8px 12px';
+          refreshEmotionBtn.style.border = '1px solid #1e88e5';
+          refreshEmotionBtn.style.borderRadius = '8px';
+          refreshEmotionBtn.style.background = '#1e88e5';
+          refreshEmotionBtn.style.color = '#fff';
+          refreshEmotionBtn.style.fontWeight = '700';
+          refreshEmotionBtn.style.cursor = 'pointer';
+          refreshEmotionBtn.style.marginBottom = '10px';
+
+          refreshEmotionBtn.addEventListener('click', async () => {
+            if (!state.userId) {
+              emotionAnalyticsMsg.style.color = '#c62828';
+              emotionAnalyticsMsg.textContent = 'Enter user ID first.';
+              return;
+            }
+
+            refreshEmotionBtn.disabled = true;
+            emotionAnalyticsMsg.style.color = '#444';
+            emotionAnalyticsMsg.textContent = 'Loading emotion analytics...';
+            emotionAnalyticsData.innerHTML = '';
+
+            try {
+              const res = await fetch(`${window.API_BASE_URL}/emotion/${state.userId}/analytics`);
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || 'Failed to load analytics');
+              }
+
+              const data = await res.json();
+              emotionAnalyticsMsg.style.color = '#2e7d32';
+              emotionAnalyticsMsg.textContent = `✓ Loaded emotion data from ${data.last30Days.count} entries`;
+
+              // Create summary cards
+              const summaryContainer = document.createElement('div');
+              summaryContainer.style.display = 'grid';
+              summaryContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(150px, 1fr))';
+              summaryContainer.style.gap = '10px';
+              summaryContainer.style.marginBottom = '12px';
+
+              const createCard = (title, value, color) => {
+                const card = document.createElement('div');
+                card.style.padding = '10px';
+                card.style.background = '#fff';
+                card.style.borderRadius = '8px';
+                card.style.border = `2px solid ${color}`;
+
+                const cardTitle = document.createElement('div');
+                cardTitle.textContent = title;
+                cardTitle.style.fontSize = '11px';
+                cardTitle.style.color = '#666';
+                cardTitle.style.marginBottom = '4px';
+
+                const cardValue = document.createElement('div');
+                cardValue.textContent = value;
+                cardValue.style.fontSize = '18px';
+                cardValue.style.fontWeight = '700';
+                cardValue.style.color = color;
+
+                card.appendChild(cardTitle);
+                card.appendChild(cardValue);
+                return card;
+              };
+
+              summaryContainer.appendChild(createCard('Avg Mood (7d)', data.last7Days.avgMoodScore.toFixed(1), '#4caf50'));
+              summaryContainer.appendChild(createCard('Happy (7d)', data.last7Days.avgHappy, '#4caf50'));
+              summaryContainer.appendChild(createCard('Sadness (7d)', data.last7Days.avgSadness, '#2196f3'));
+              summaryContainer.appendChild(createCard('Anger (7d)', data.last7Days.avgAnger, '#f44336'));
+              summaryContainer.appendChild(createCard('Fear (7d)', data.last7Days.avgFear, '#ff9800'));
+
+              // Check for high negative emotion levels
+              const totalNegative = data.last7Days.avgSadness + data.last7Days.avgFear;
+              if (totalNegative > 70) {
+                const warningBox = document.createElement('div');
+                warningBox.style.cssText = 'margin: 16px 0; padding: 16px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; text-align: center;';
+                warningBox.innerHTML = `
+                  <div style="font-size: 24px; margin-bottom: 8px;">⚠️</div>
+                  <div style="font-weight: 700; color: #856404; font-size: 14px; margin-bottom: 4px;">High Stress Levels Detected</div>
+                  <div style="color: #856404; font-size: 12px;">Your sadness and fear levels are elevated (${Math.round(totalNegative)}%). We recommend consulting a mental health professional.</div>
+                `;
+                summaryContainer.appendChild(warningBox);
+              }
+
+              // Recent entries table
+              const tableContainer = document.createElement('div');
+              tableContainer.style.marginTop = '12px';
+              tableContainer.style.maxHeight = '300px';
+              tableContainer.style.overflowY = 'auto';
+
+              const table = document.createElement('table');
+              table.style.width = '100%';
+              table.style.borderCollapse = 'collapse';
+              table.style.fontSize = '11px';
+
+              const thead = document.createElement('thead');
+              thead.innerHTML = `
+                <tr style="background: #e3f2fd; text-align: left;">
+                  <th style="padding: 6px;">Date</th>
+                  <th style="padding: 6px;">Mood</th>
+                  <th style="padding: 6px;">Happy</th>
+                  <th style="padding: 6px;">Sadness</th>
+                  <th style="padding: 6px;">Anger</th>
+                  <th style="padding: 6px;">Fear</th>
+                  <th style="padding: 6px;">Source</th>
+                </tr>
+              `;
+
+              const tbody = document.createElement('tbody');
+              data.recentEntries.forEach((entry, idx) => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #e0e0e0';
+                
+                // Highlight row if sadness + fear > 70
+                const totalNegative = entry.sadness + entry.fear;
+                if (totalNegative > 70) {
+                  tr.style.background = '#fff3cd';
+                  tr.style.borderLeft = '3px solid #ffc107';
+                } else {
+                  tr.style.background = idx % 2 === 0 ? '#fff' : '#f9f9f9';
+                }
+
+                const dateStr = new Date(entry.date).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+
+                const sourceCell = document.createElement('td');
+                sourceCell.style.padding = '6px';
+                
+                const sourceSpan = document.createElement('span');
+                sourceSpan.style.cssText = 'background: #e3f2fd; padding: 2px 6px; border-radius: 4px; font-size: 10px;';
+                sourceSpan.textContent = entry.source;
+                
+                // Make clickable if multiple readings
+                if (entry.readingsCount > 1 && entry.individualReadings) {
+                  sourceSpan.style.cursor = 'pointer';
+                  sourceSpan.style.textDecoration = 'underline';
+                  sourceSpan.title = 'Click to view all readings';
+                  
+                  sourceSpan.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    
+                    // Create modal
+                    const modal = document.createElement('div');
+                    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+                    
+                    const modalContent = document.createElement('div');
+                    modalContent.style.cssText = 'background: #fff; padding: 20px; border-radius: 12px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.3);';
+                    
+                    const modalTitle = document.createElement('h3');
+                    modalTitle.style.cssText = 'margin: 0 0 16px 0; font-size: 16px; color: #1a237e;';
+                    modalTitle.textContent = `All Check-ins for ${dateStr.split(' at ')[0]}`;
+                    
+                    const closeBtn = document.createElement('button');
+                    closeBtn.textContent = '✕';
+                    closeBtn.style.cssText = 'float: right; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;';
+                    closeBtn.onclick = () => modal.remove();
+                    
+                    const readingsTable = document.createElement('table');
+                    readingsTable.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px;';
+                    
+                    readingsTable.innerHTML = `
+                      <thead>
+                        <tr style="background: #e3f2fd; text-align: left;">
+                          <th style="padding: 8px;">Time</th>
+                          <th style="padding: 8px;">Mood</th>
+                          <th style="padding: 8px;">Happy</th>
+                          <th style="padding: 8px;">Sadness</th>
+                          <th style="padding: 8px;">Anger</th>
+                          <th style="padding: 8px;">Fear</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${entry.individualReadings.map((reading, idx) => {
+                          const timeStr = new Date(reading.time).toLocaleString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          });
+                          const totalNegative = (reading.sadness || 0) + (reading.fear || 0);
+                          const hasWarning = totalNegative > 70;
+                          return `
+                            <tr style="border-bottom: 1px solid #e0e0e0; background: ${idx % 2 === 0 ? '#fff' : '#f9f9f9'};">
+                              <td style="padding: 8px;">${hasWarning ? '⚠️ ' : ''}${timeStr}</td>
+                              <td style="padding: 8px; font-weight: 700;">${reading.moodScore}</td>
+                              <td style="padding: 8px; color: #4caf50;">${reading.happy}</td>
+                              <td style="padding: 8px;">${reading.sadness}</td>
+                              <td style="padding: 8px;">${reading.anger}</td>
+                              <td style="padding: 8px;">${reading.fear}</td>
+                            </tr>
+                            ${hasWarning ? `<tr style="background: #fff3cd;"><td colspan="6" style="padding: 4px 8px; font-size: 11px; color: #856404;"><strong>⚠️ High stress detected:</strong> Consider reaching out for support.</td></tr>` : ''}
+                            ${reading.notes ? `<tr style="background: #f5f5f5;"><td colspan="6" style="padding: 4px 8px; font-size: 11px; color: #666;"><strong>Note:</strong> ${reading.notes}</td></tr>` : ''}
+                          `;
+                        }).join('')}
+                      </tbody>
+                    `;
+                    
+                    modalTitle.appendChild(closeBtn);
+                    modalContent.appendChild(modalTitle);
+                    modalContent.appendChild(readingsTable);
+                    modal.appendChild(modalContent);
+                    
+                    modal.addEventListener('click', (e) => {
+                      if (e.target === modal) modal.remove();
+                    });
+                    
+                    document.body.appendChild(modal);
+                  });
+                }
+                
+                sourceCell.appendChild(sourceSpan);
+
+                tr.innerHTML = `
+                  <td style="padding: 6px;">${dateStr}${totalNegative > 70 ? ' ⚠️' : ''}</td>
+                  <td style="padding: 6px; font-weight: 700;">${entry.moodScore}</td>
+                  <td style="padding: 6px; color: #4caf50;">${entry.happy || 0}</td>
+                  <td style="padding: 6px;">${entry.sadness}</td>
+                  <td style="padding: 6px;">${entry.anger}</td>
+                  <td style="padding: 6px;">${entry.fear}</td>
+                `;
+                tr.appendChild(sourceCell);
+
+                if (entry.notes) {
+                  tr.title = `Notes: ${entry.notes}`;
+                  tr.style.cursor = 'help';
+                } else if (totalNegative > 70) {
+                  tr.title = `High stress alert: Sadness + Fear = ${Math.round(totalNegative)}%`;
+                  tr.style.cursor = 'help';
+                }
+
+                tbody.appendChild(tr);
+              });
+
+              table.appendChild(thead);
+              table.appendChild(tbody);
+              tableContainer.appendChild(table);
+
+              // Source breakdown
+              const sourceInfo = document.createElement('div');
+              sourceInfo.style.marginTop = '10px';
+              sourceInfo.style.fontSize = '11px';
+              sourceInfo.style.color = '#666';
+              const sources = Object.entries(data.bySource).map(([src, count]) => `${src}: ${count}`).join(' | ');
+              sourceInfo.textContent = `Data sources: ${sources}`;
+
+              emotionAnalyticsData.appendChild(summaryContainer);
+              emotionAnalyticsData.appendChild(tableContainer);
+              emotionAnalyticsData.appendChild(sourceInfo);
+            } catch (e) {
+              emotionAnalyticsMsg.style.color = '#c62828';
+              emotionAnalyticsMsg.textContent = e.message || 'Failed to load emotion analytics.';
+            } finally {
+              refreshEmotionBtn.disabled = false;
+            }
+          });
+
+          emotionAnalyticsBox.appendChild(emotionAnalyticsTitle);
+          emotionAnalyticsBox.appendChild(refreshEmotionBtn);
+          emotionAnalyticsBox.appendChild(emotionAnalyticsMsg);
+          emotionAnalyticsBox.appendChild(emotionAnalyticsData);
+
+          container.appendChild(emotionAnalyticsBox);
+          container.appendChild(faceBox);
+          container.appendChild(emotionSurveyBox);
+          mount.appendChild(container);
+      }
+      
+      // Auto-load emotion tracker when page loads
+      document.addEventListener('DOMContentLoaded', loadEmotionTrackerUI);
+    </script>
   <script src="script.js?v=12"></script>
 </body>
 </html>

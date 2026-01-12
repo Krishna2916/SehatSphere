@@ -6,9 +6,30 @@ console.log('🚀 SehatSphere App Loading...');
 const $ = id => document.getElementById(id);
 let session = { role: null, name: null, patientId: null };
 
+// In-memory patient data (replaces localStorage persistence)
+const patientDataDefaults = {
+  patients: [],
+  profiles: [],
+  meds: [],
+  prescriptions: [],
+  tests: [],
+  issues: [],
+  appointments: [],
+  moods: [],
+  consults: [],
+  consultReplies: [],
+  contacts: [],
+  visits: [],
+  sos: [],
+  aiQueries: [],
+  fileUploads: []
+};
+let patientDataStore = JSON.parse(JSON.stringify(patientDataDefaults));
+let patientDataLoaded = false;
+
 // Backend API base - change to your deployed backend when ready
 const API_BASE_URL = window.API_BASE_URL || 'http://localhost:3001/api';
-// Try backend by default; frontend falls back to localStorage if backend fails
+// Try backend by default; frontend falls back to local-only mode if backend fails
 let useBackend = true;
 
 console.log('📡 API Base URL:', API_BASE_URL);
@@ -48,24 +69,19 @@ function genHealthId(name) {
   return 'MED' + base + rand.toString().slice(0, 5);
 }
 
-// LocalStorage helpers
+// Patient data helpers (now in-memory + API persistence)
+function resetPatientData() {
+  patientDataStore = JSON.parse(JSON.stringify(patientDataDefaults));
+  patientDataLoaded = false;
+}
+
 function loadAll(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || '[]');
-  } catch (e) {
-    console.error('Parse error', key, e);
-    return [];
-  }
+  return Array.isArray(patientDataStore[key]) ? patientDataStore[key] : [];
 }
 
 function saveAll(key, arr) {
-  localStorage.setItem(key, JSON.stringify(arr));
-}
-
-function ensureKey(key) {
-  if (!localStorage.getItem(key)) {
-    localStorage.setItem(key, JSON.stringify([]));
-  }
+  patientDataStore[key] = Array.isArray(arr) ? arr : [];
+  persistPatientData();
 }
 
 function addRecord(kind, obj) {
@@ -84,8 +100,93 @@ function queryForPatient(kind, pid) {
   return loadAll(kind).filter(x => x.patientId === pid);
 }
 
-// Initialize localStorage keys
-['patients', 'profiles', 'meds', 'prescriptions', 'tests', 'issues', 'appointments', 'moods', 'consults', 'consultReplies', 'contacts', 'visits', 'sos', 'aiQueries', 'fileUploads'].forEach(ensureKey);
+async function fetchPatientDataFromApi() {
+  if (!useBackend) {
+    resetPatientData();
+    return;
+  }
+  const token = localStorage.getItem('authToken');
+  if (!token) {
+    resetPatientData();
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/patient/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      patientDataStore = { ...patientDataDefaults, ...data };
+      patientDataLoaded = true;
+      console.log('✅ Patient data loaded from API');
+      // If no patient record yet, seed one from session
+      if (!patientDataStore.patients?.length && session.patientId) {
+        await seedPatientRecord();
+      }
+    } else if (res.status === 404) {
+      console.warn('⚠️ No patient record found; seeding default');
+      await seedPatientRecord();
+    } else {
+      console.warn('⚠️ Failed to load patient data from API, using empty defaults');
+      resetPatientData();
+    }
+  } catch (e) {
+    console.error('❌ Error loading patient data:', e.message);
+    // Fall back to seeding a minimal in-memory record so UI still works offline/missing endpoint
+    await seedPatientRecord(true);
+  }
+}
+
+async function seedPatientRecord(skipApi = false) {
+  const token = localStorage.getItem('authToken');
+  if (!session.patientId) return;
+  const minimal = {
+    patients: [{ patientId: session.patientId, name: session.name, created: new Date().toISOString() }],
+    profiles: [], meds: [], prescriptions: [], tests: [], issues: [], appointments: [], moods: [], consults: [], consultReplies: [], contacts: [], visits: [], sos: [], aiQueries: [], fileUploads: []
+  };
+  patientDataStore = { ...patientDataDefaults, ...minimal };
+  patientDataLoaded = true;
+  if (skipApi || !useBackend || !token) return;
+  try {
+    const res = await fetch(`${API_BASE_URL}/patient`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(minimal)
+    });
+    if (!res.ok) {
+      console.warn('⚠️ Failed to seed patient record:', res.status);
+    } else {
+      console.log('✅ Seeded patient record');
+    }
+  } catch (e) {
+    console.warn('⚠️ Error seeding patient record:', e.message);
+  }
+}
+
+async function persistPatientData() {
+  if (!useBackend) return;
+  const token = localStorage.getItem('authToken');
+  if (!token) return;
+  const payload = { ...patientDataStore };
+  try {
+    await fetch(`${API_BASE_URL}/patient`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (e) {
+    console.warn('⚠️ Failed to persist patient data to API:', e.message);
+  }
+}
 
 // Hide splash screen and initialize
 window.onload = () => {
@@ -558,7 +659,9 @@ function initializeLoginListeners() {
   });
 }
 
-function afterLogin() {
+async function afterLogin() {
+  await fetchPatientDataFromApi();
+
   $('loginSection').classList.add('hidden');
   $('dashboard').classList.remove('hidden');
   $('logoutBtn').classList.remove('hidden');
@@ -585,6 +688,7 @@ document.addEventListener('click', async (e) => {
   if (e.target && e.target.id === 'logoutBtn') {
     // Clear JWT token
     localStorage.removeItem('authToken');
+    resetPatientData();
     
     // Clear session
     session = { role: null, name: null, patientId: null };
@@ -651,11 +755,12 @@ function addAuthorityMenuButtons(container) {
 // ===== VIEW MANAGEMENT (MVP Enhanced) =====
 
 function showView(view) {
+  console.log('showView called with:', view);
   const allViews = [
     // Patient views
     'profile', 'profiles', 'medications', 'prescriptions', 'tests', 'issues', 'appointments', 'mood', 'consult', 'sos',
     // MVP views
-    'askAI', 'myReports', 'healthId', 'reminders',
+    'askAI', 'myReports', 'healthId', 'reminders', 'emotionTracker',
     // Authority views
     'search', 'uploadPres', 'uploadTest', 'visits', 'consultList', 'soslog'
   ];
@@ -684,6 +789,7 @@ function showView(view) {
       myReports: renderMyReportsView,
       healthId: renderHealthIdView,
       reminders: renderRemindersView,
+      emotionTracker: renderEmotionTrackerView,
       // Patient views
       profile: renderProfileView,
       profiles: renderDiseaseProfiles,
@@ -969,6 +1075,38 @@ function renderRemindersView() {
   } else {
     el.innerHTML += '<div class="muted">No appointments scheduled</div>';
   }
+}
+
+// Emotion Tracker
+function renderEmotionTrackerView() {
+  console.log('renderEmotionTrackerView called');
+  const el = $('view-emotionTracker');
+  console.log('Found element:', el);
+  
+  if (!el) {
+    console.error('Emotion tracker view element not found');
+    return;
+  }
+  
+  el.innerHTML = `
+    <h3>😊 Emotion Tracker</h3>
+    <p class="subtitle-text">Track and analyze your daily mood & emotions</p>
+    <div id="emotionTrackerContent"></div>
+  `;
+  
+  console.log('HTML set, checking for loadEmotionTrackerUI...');
+  console.log('loadEmotionTrackerUI type:', typeof window.loadEmotionTrackerUI);
+  
+  // The emotion tracker content will be loaded from index.html inline code
+  // We'll trigger it by calling the existing function with a small delay to ensure DOM is ready
+  setTimeout(() => {
+    if (typeof window.loadEmotionTrackerUI === 'function') {
+      console.log('Calling loadEmotionTrackerUI...');
+      window.loadEmotionTrackerUI();
+    } else {
+      console.error('loadEmotionTrackerUI function not found on window object');
+    }
+  }, 100);
 }
 
 // ===== ORIGINAL PATIENT VIEWS (Modified slightly) =====
@@ -1607,5 +1745,10 @@ function saveAll(key, arr){ localStorage.setItem(key, JSON.stringify(arr)); }
 
 // ensure patients list exists
 if(!localStorage.getItem('patients')) localStorage.setItem('patients', JSON.stringify([]));
+
+// Expose functions globally for inline onclick handlers
+window.showView = showView;
+window.toggleMenu = toggleMenu;
+window.showMessage = showMessage;
 
 // End of script
