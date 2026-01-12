@@ -22,10 +22,23 @@ const userSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  age: {
+    type: Number,
+    min: 0
+  },
+  gender: {
+    type: String,
+    trim: true
+  },
   role: {
     type: String,
-    enum: ['patient', 'hospital', 'oldage', 'pathology', 'dementia'],
+    enum: ['patient', 'caregiver', 'doctor', 'corporate'],
     default: 'patient'
+  },
+  riskProfile: {
+    type: String,
+    enum: ['normal', 'elderly', 'dementia', 'corporate'],
+    default: 'normal'
   },
   pinHash: {
     type: String,
@@ -60,16 +73,8 @@ const userSchema = new mongoose.Schema({
   lastLoginAt: {
     type: Date,
     default: null
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
   }
-});
+}, { timestamps: true });
 
 // Ensure at least email or phone is provided
 userSchema.pre('validate', function(next) {
@@ -82,8 +87,6 @@ userSchema.pre('validate', function(next) {
 
 // Hash PIN before saving
 userSchema.pre('save', async function(next) {
-  this.updatedAt = Date.now();
-  
   // If PIN is being modified and it's not already hashed
   if (this.isModified('pinHash') && this.pinHash && !this.pinHash.startsWith('$2a$')) {
     try {
