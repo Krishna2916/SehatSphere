@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
+const { setupDailyMoodCheck } = require('./cron/dailyMoodCheck');
 
 dotenv.config();
 
@@ -76,8 +77,17 @@ const authRouter = require('./routes/auth');
 const filesRouter = require('./routes/files');
 const aiRouter = require('./routes/ai');
 const uploadRouter = require('./routes/upload');
+const moodRouter = require('./routes/mood');
+const alertRouter = require('./routes/alert');
+const weeklySurveyRouter = require('./routes/weeklySurvey');
+const emotionRouter = require('./routes/emotion');
+const emergencyContactRouter = require('./routes/emergencyContact');
+const patientRouter = require('./routes/patient');
 const path = require('path');
 const fs = require('fs');
+
+// Start scheduled jobs
+setupDailyMoodCheck();
 
 // Root health-check (plain text)
 app.get('/', (req, res) => {
@@ -88,6 +98,12 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/mood', moodRouter);
+app.use('/api/alert', alertRouter);
+app.use('/api/weekly-survey', weeklySurveyRouter);
+app.use('/api/emotion', emotionRouter);
+app.use('/api/emergency-contact', emergencyContactRouter);
+app.use('/api/patient', patientRouter);
 // Serve uploaded files statically from /uploads
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -105,6 +121,25 @@ app.get('/api/health', (req, res) => {
       ai: true,
       fileUpload: true
     }
+  });
+});
+
+// API root helper
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    message: 'SehatSphere API root',
+    endpoints: [
+      '/api/health',
+      '/api/auth',
+      '/api/files',
+      '/api/ai',
+      '/api/upload',
+      '/api/mood',
+      '/api/alert/:userId',
+      '/api/weekly-survey',
+      '/api/weekly-survey/:userId/analytics'
+    ]
   });
 });
 
